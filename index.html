@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bus Route Geospatial Data</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+     crossorigin=""/>
+    
+    <!-- Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+     crossorigin=""></script>
+    
+    <style>
+        body { margin: 0; padding: 0; }
+        #map { height: 100vh; width: 100vw; }
+        .info { padding: 6px 8px; font: 14px/16px Arial, Helvetica, sans-serif; background: white; background: rgba(255,255,255,0.8); box-shadow: 0 0 15px rgba(0,0,0,0.2); border-radius: 5px; }
+        .info h4 { margin: 0 0 5px; color: #777; }
+        .legend { line-height: 18px; color: #555; }
+        .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; opacity: 0.7; }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<script>
+    // Initialize the map, centered on an approximate location from your data
+    var map = L.map('map').setView([33.776, -84.389], 15);
+
+    // Add the OpenStreetMap tile layer (the base map)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
+
+    // Function to determine color based on mean acceleration
+    function getColor(accel) {
+        return accel > 10.5 ? '#d73027' :
+               accel > 10.0 ? '#fc8d59' :
+               accel > 9.5  ? '#fee08b' :
+               accel > 9.0  ? '#d9ef8b' :
+                              '#91cf60';
+    }
+
+    // Fetch the GeoJSON data and add it to the map
+    fetch('bus_route.geojson')
+        .then(response => response.json())
+        .then(data => {
+            var geojsonLayer = L.geoJSON(data, {
+                // Style each data point (marker)
+                pointToLayer: function (feature, latlng) {
+                    return L.circleMarker(latlng, {
+                        radius: 6,
+                        fillColor: getColor(feature.properties.accel_mean),
+                        color: "#000",
+                        weight: 1,
+                        opacity: 1,
+                        fillOpacity: 0.8
+                    });
+                },
+                // Add a popup to each marker
+                onEachFeature: function (feature, layer) {
+                    layer.bindPopup(
+                        '<b>Timestamp:</b> ' + feature.properties.timestamp + '<br>' +
+                        '<b>Mean Acceleration:</b> ' + feature.properties.accel_mean.toFixed(3) + ' m/s²' + '<br>' +
+                        '<b>Variance:</b> ' + feature.properties.accel_variance.toFixed(3) + ' (m/s²)²'
+                    );
+                }
+            }).addTo(map);
+            
+            // Optional: fit the map to the bounds of the data
+            map.fitBounds(geojsonLayer.getBounds());
+
+            // Optional: Draw a line connecting the points to show the route
+            var coordinates = data.features.map(feature => [feature.geometry.coordinates[1], feature.geometry.coordinates[0]]); // Leaflet polyline uses [lat, lng]
+            L.polyline(coordinates, {color: 'blue', weight: 3, opacity: 0.6}).addTo(map);
+        });
+
+    // --- Add a Legend to the Map ---
+    var legend = L.control({position: 'bottomright'});
+
+    legend.onAdd = function (map) {
+        var div = L.DomUtil.create('div', 'info legend'),
+            grades = [0, 9.0, 9.5, 10.0, 10.5],
+            labels = ['<strong>Mean Acceleration (m/s²)</strong>'],
+            from, to;
+
+        for (var i = 0; i < grades.length; i++) {
+            from = grades[i];
+            to = grades[i + 1];
+            labels.push(
+                '<i style="background:' + getColor(from + 0.1) + '"></i> ' +
+                from + (to ? '&ndash;' + to : '+')
+            );
+        }
+        div.innerHTML = labels.join('<br>');
+        return div;
+    };
+    legend.addTo(map);
+
+</script>
+
+</body>
+</html>
