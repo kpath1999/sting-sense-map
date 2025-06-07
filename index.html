@@ -65,14 +65,27 @@
                         fillOpacity: 0.8
                     });
                 },
-                // Add a popup to each marker
+                // *** MODIFIED AREA START ***
+                // Add a popup to each marker with the new properties
                 onEachFeature: function (feature, layer) {
-                    layer.bindPopup(
-                        '<b>Timestamp:</b> ' + feature.properties.timestamp + '<br>' +
-                        '<b>Mean Acceleration:</b> ' + feature.properties.accel_mean.toFixed(3) + ' m/s²' + '<br>' +
-                        '<b>Variance:</b> ' + feature.properties.accel_variance.toFixed(3) + ' (m/s²)²'
-                    );
+                    // Access the properties from the feature
+                    const props = feature.properties;
+                    
+                    // Build the HTML content for the popup
+                    const popupContent = `
+                        <b>Timestamp:</b> ${props.timestamp}<br>
+                        <hr>
+                        <b>Mean Accel:</b> ${props.accel_mean.toFixed(3)} m/s²<br>
+                        <b>Accel Variance:</b> ${props.accel_variance.toFixed(3)} (m/s²)²<br>
+                        <hr>
+                        <b>X-Axis p99:</b> ${props.accel_stats_x_p99.toFixed(3)}<br>
+                        <b>Y-Axis p99:</b> ${props.accel_stats_y_p99.toFixed(3)}<br>
+                        <b>Z-Axis p99:</b> ${props.accel_stats_z_p99.toFixed(3)}<br>
+                    `;
+                    
+                    layer.bindPopup(popupContent);
                 }
+                // *** MODIFIED AREA END ***
             }).addTo(map);
             
             // Optional: fit the map to the bounds of the data
