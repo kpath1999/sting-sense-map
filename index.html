@@ -38,14 +38,16 @@
         attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
     }).addTo(map);
 
-    // Function to determine color based on mean acceleration
+    // *** MODIFIED AREA START ***
+    // This function determines color based on the thresholds from your analysis.
     function getColor(accel) {
-        return accel > 10.5 ? '#d73027' :
-               accel > 10.0 ? '#fc8d59' :
-               accel > 9.5  ? '#fee08b' :
-               accel > 9.0  ? '#d9ef8b' :
-                              '#91cf60';
+        return accel <= 9.2400 ? '#d73027' :
+               accel <= 9.2600 ? '#fc8d59' :
+               accel <= 9.3060 ? '#fee08b' :
+               accel <= 9.3240 ? '#d9ef8b' :
+                                '#91cf60'; // Default for the highest values
     }
+    // *** MODIFIED AREA END ***
 
     // Fetch the GeoJSON data and add it to the map
     fetch('bus_route.geojson')
@@ -75,10 +77,6 @@
             
             // Optional: fit the map to the bounds of the data
             map.fitBounds(geojsonLayer.getBounds());
-
-            // Optional: Draw a line connecting the points to show the route
-            var coordinates = data.features.map(feature => [feature.geometry.coordinates[1], feature.geometry.coordinates[0]]); // Leaflet polyline uses [lat, lng]
-            L.polyline(coordinates, {color: 'blue', weight: 3, opacity: 0.6}).addTo(map);
         });
 
     // --- Add a Legend to the Map ---
@@ -86,7 +84,10 @@
 
     legend.onAdd = function (map) {
         var div = L.DomUtil.create('div', 'info legend'),
-            grades = [0, 9.0, 9.5, 10.0, 10.5],
+            // *** MODIFIED AREA START ***
+            // Update these grades to match the new thresholds for the legend text
+            grades = [0, 9.2400, 9.2600, 9.3060, 9.3240], 
+            // *** MODIFIED AREA END ***
             labels = ['<strong>Mean Acceleration (m/s²)</strong>'],
             from, to;
 
@@ -94,8 +95,8 @@
             from = grades[i];
             to = grades[i + 1];
             labels.push(
-                '<i style="background:' + getColor(from + 0.1) + '"></i> ' +
-                from + (to ? '&ndash;' + to : '+')
+                '<i style="background:' + getColor(from + 0.0001) + '"></i> ' + // Use getColor to keep legend consistent
+                from + (to ? '&ndash;' + to.toFixed(4) : '+') // Format number and add '+' for the last grade
             );
         }
         div.innerHTML = labels.join('<br>');
