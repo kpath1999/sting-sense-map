@@ -68,14 +68,103 @@
             font-weight: bold;
             text-shadow: 1px 1px 1px rgba(0,0,0,0.3);
         }
+        /* New styles for summary button and modal */
+        .summary-button {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            padding: 10px 20px;
+            background-color: #2c7bb6;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            transition: background-color 0.3s;
+        }
+        .summary-button:hover {
+            background-color: #1a5f8c;
+        }
+        .summary-modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            z-index: 1001;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .summary-content {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }
+        .summary-header {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #2c7bb6;
+            border-bottom: 2px solid #2c7bb6;
+            padding-bottom: 10px;
+        }
+        .summary-section {
+            margin-bottom: 20px;
+        }
+        .summary-section h3 {
+            color: #555;
+            margin-bottom: 10px;
+        }
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+        .close-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #666;
+        }
+        .close-button:hover {
+            color: #333;
+        }
     </style>
 </head>
 <body>
 
 <div id="map"></div>
+<button class="summary-button" onclick="generateSummary()">Generate Summary</button>
+<div class="modal-overlay" id="modalOverlay"></div>
+<div class="summary-modal" id="summaryModal">
+    <button class="close-button" onclick="closeSummary()">&times;</button>
+    <div class="summary-content" id="summaryContent">
+        <div class="summary-header">Route Analysis Summary</div>
+        <div id="summaryText">Generating summary...</div>
+    </div>
+</div>
 
 <script>
     var map = L.map('map').setView([33.776, -84.389], 15);
+    var allData = []; // Store all data points for analysis
 
     var baseLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
@@ -92,7 +181,6 @@
         'Very Aggressive': '#d7191c'
     };
 
-    // *** MODIFIED AREA START ***
     // Create an object to hold our layer groups, one for each behavior type
     const overlayLayers = {};
     
@@ -109,6 +197,9 @@
     fetch('bus_route_with_clusters.geojson')
         .then(response => response.json())
         .then(data => {
+            // Store all data points for analysis
+            allData = data.features;
+
             // Process each feature and add it to the correct layer group
             data.features.forEach(feature => {
                 const props = feature.properties;
@@ -116,7 +207,7 @@
                 const color = props.color;
                 
                 const marker = L.circleMarker(
-                    [feature.geometry.coordinates[1], feature.geometry.coordinates[0]], // [lat, lng]
+                    [feature.geometry.coordinates[1], feature.geometry.coordinates[0]],
                     {
                         radius: 6,
                         fillColor: color,
@@ -127,7 +218,7 @@
                     }
                 );
 
-                // Build comprehensive popup content with ALL available data
+                // Build comprehensive popup content
                 const popupContent = `
                     <div style="width: 320px; max-height: 400px; overflow-y: auto;">
                         <!-- Header Section -->
@@ -188,7 +279,7 @@
                             </div>
                             <div class="data-row">
                                 <span class="data-label">90th Percentile (p90):</span>
-                                <span class="data-value">${props.accel_stats_x_p90.toFixed(4)} m/s²</span>
+                                <span class="data-value">${props.accel_stats_y_p90.toFixed(4)} m/s²</span>
                             </div>
                             <div class="data-row">
                                 <span class="data-label">99th Percentile (p99):</span>
@@ -275,9 +366,122 @@
 
     // Add the layer control panel to the map
     L.control.layers(null, overlayLayers, { collapsed: false }).addTo(map);
-    // *** MODIFIED AREA END ***
 
+    // Function to generate summary
+    function generateSummary() {
+        // Show loading state
+        document.getElementById('summaryText').innerHTML = 'Analyzing route data...';
+        document.getElementById('modalOverlay').style.display = 'block';
+        document.getElementById('summaryModal').style.display = 'block';
+
+        // Process data for LLM input
+        const summaryData = processDataForSummary(allData);
+        
+        // Call LLM API (replace with your actual LLM API endpoint)
+        fetch('YOUR_LLM_API_ENDPOINT', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                prompt: generatePrompt(summaryData),
+                max_tokens: 500
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('summaryText').innerHTML = data.summary;
+        })
+        .catch(error => {
+            console.error('Error generating summary:', error);
+            document.getElementById('summaryText').innerHTML = 'Error generating summary. Please try again.';
+        });
+    }
+
+    // Function to process data for summary
+    function processDataForSummary(data) {
+        // Group data by geographic regions (you can define these based on coordinates)
+        const regions = {
+            'Midtown': { lat: [33.77, 33.78], lng: [-84.39, -84.38] },
+            'Ferst Drive': { lat: [33.775, 33.785], lng: [-84.405, -84.395] },
+            'Couch': { lat: [33.77, 33.78], lng: [-84.395, -84.385] }
+        };
+
+        const regionData = {};
+        
+        // Process data for each region
+        for (const [region, bounds] of Object.entries(regions)) {
+            const regionPoints = data.filter(point => {
+                const lat = point.geometry.coordinates[1];
+                const lng = point.geometry.coordinates[0];
+                return lat >= bounds.lat[0] && lat <= bounds.lat[1] &&
+                       lng >= bounds.lng[0] && lng <= bounds.lng[1];
+            });
+
+            if (regionPoints.length > 0) {
+                regionData[region] = {
+                    count: regionPoints.length,
+                    behaviors: regionPoints.map(p => p.properties.behavior),
+                    extremeEvents: regionPoints.map(p => p.properties.extreme_event_magnitude),
+                    instabilityScores: regionPoints.map(p => p.properties.instability_score),
+                    accelStats: {
+                        x: {
+                            p1: regionPoints.map(p => p.properties.accel_stats_x_p1),
+                            p99: regionPoints.map(p => p.properties.accel_stats_x_p99)
+                        },
+                        y: {
+                            p1: regionPoints.map(p => p.properties.accel_stats_y_p1),
+                            p99: regionPoints.map(p => p.properties.accel_stats_y_p99)
+                        },
+                        z: {
+                            p1: regionPoints.map(p => p.properties.accel_stats_z_p1),
+                            p99: regionPoints.map(p => p.properties.accel_stats_z_p99)
+                        }
+                    }
+                };
+            }
+        }
+
+        return regionData;
+    }
+
+    // Function to generate LLM prompt
+    function generatePrompt(summaryData) {
+        let prompt = "Analyze the following bus route data and provide a natural language summary of the driving conditions and behavior patterns:\n\n";
+        
+        for (const [region, data] of Object.entries(summaryData)) {
+            prompt += `Region: ${region}\n`;
+            prompt += `Number of data points: ${data.count}\n`;
+            prompt += `Behavior distribution: ${JSON.stringify(data.behaviors)}\n`;
+            prompt += `Average extreme event magnitude: ${average(data.extremeEvents)}\n`;
+            prompt += `Average instability score: ${average(data.instabilityScores)}\n`;
+            prompt += `Acceleration statistics:\n`;
+            prompt += `X-axis: p1=${average(data.accelStats.x.p1)}, p99=${average(data.accelStats.x.p99)}\n`;
+            prompt += `Y-axis: p1=${average(data.accelStats.y.p1)}, p99=${average(data.accelStats.y.p99)}\n`;
+            prompt += `Z-axis: p1=${average(data.accelStats.z.p1)}, p99=${average(data.accelStats.z.p99)}\n\n`;
+        }
+
+        prompt += "Please provide a natural language summary of the driving conditions and behavior patterns observed in each region, focusing on:\n";
+        prompt += "1. Overall ride quality\n";
+        prompt += "2. Frequency of stops or slowdowns\n";
+        prompt += "3. Presence of bumps or rough road conditions\n";
+        prompt += "4. Any notable patterns in driving behavior\n";
+        prompt += "Use natural language and be specific about locations and conditions.";
+
+        return prompt;
+    }
+
+    // Helper function to calculate average
+    function average(arr) {
+        return arr.reduce((a, b) => a + b, 0) / arr.length;
+    }
+
+    // Function to close summary modal
+    function closeSummary() {
+        document.getElementById('modalOverlay').style.display = 'none';
+        document.getElementById('summaryModal').style.display = 'none';
+    }
 </script>
 
 </body>
-</html>
+</html> 
