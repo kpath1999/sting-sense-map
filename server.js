@@ -8,7 +8,13 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', env: process.env.NODE_ENV });
+});
+
 app.post('/api/generate-summary', async (req, res) => {
+    console.log('Received request to /api/generate-summary');
     try {
         if (!process.env.GROQ_API_KEY) {
             console.error('GROQ_API_KEY is not defined');
@@ -46,7 +52,7 @@ app.post('/api/generate-summary', async (req, res) => {
     }
 });
 
-// For Vercel serverless functions
+// For local development
 if (process.env.NODE_ENV !== 'production') {
     const PORT = process.env.PORT || 3000;
     app.listen(PORT, () => {
@@ -54,4 +60,5 @@ if (process.env.NODE_ENV !== 'production') {
     });
 }
 
+// Export for Vercel
 module.exports = app; 
