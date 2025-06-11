@@ -22,11 +22,15 @@
             top: 65px !important;
             right: 10px !important;
             z-index: 1000;
+            min-width: 180px;
         }
         .leaflet-control-layers-base label, .leaflet-control-layers-overlays label {
             display: flex;
             align-items: center;
             margin-bottom: 5px;
+        }
+        .leaflet-control-layers span[style*="background-color"] {
+            margin-right: 10px;
         }
         /* Enhanced popup styling */
         .leaflet-popup-content {
