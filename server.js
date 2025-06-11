@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch');
+const path = require('path'); // Import the path module
 
 const app = express();
 app.use(cors());
@@ -11,12 +12,9 @@ app.use(express.json());
 app.use(express.static('public'));
 
 // Add a catch-all route for your main page
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
-
-// Make sure to require path at the top
-const path = require('path');
 
 // Simple in-memory cache for responses
 const responseCache = new Map();
