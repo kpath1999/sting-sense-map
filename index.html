@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Bus Route Geospatial Data</title>
+    <title>Bus Route Driving Behavior Analysis</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
@@ -14,7 +14,6 @@
     <style>
         body { margin: 0; padding: 0; }
         #map { height: 100vh; width: 100vw; }
-        /* Style the layer control panel to be more prominent if needed */
         .leaflet-control-layers {
             background: rgba(255, 255, 255, 0.9);
             padding: 10px;
@@ -24,6 +23,50 @@
             display: flex;
             align-items: center;
             margin-bottom: 5px;
+        }
+        /* Enhanced popup styling */
+        .leaflet-popup-content {
+            margin: 8px 12px;
+            line-height: 1.4;
+            font-size: 13px;
+            font-family: Arial, sans-serif;
+        }
+        .popup-section {
+            margin-bottom: 12px;
+        }
+        .popup-header {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 6px;
+            padding-bottom: 3px;
+            border-bottom: 1px solid #ddd;
+        }
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 3px;
+        }
+        .data-label {
+            font-weight: 500;
+            color: #555;
+        }
+        .data-value {
+            color: #333;
+            font-family: 'Courier New', monospace;
+        }
+        .highlight-value {
+            background-color: #f0f8ff;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        .behavior-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            color: white;
+            font-weight: bold;
+            text-shadow: 1px 1px 1px rgba(0,0,0,0.3);
         }
     </style>
 </head>
@@ -39,51 +82,44 @@
         attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
     }).addTo(map);
 
-    // --- Data Configuration ---
-    // These values are from your analysis script.
-    const grades = [0, 9.2400, 9.2600, 9.3060, 9.3240];
-    const colors = ['#d73027', '#fc8d59', '#fee08b', '#d9ef8b', '#91cf60'];
-
-    // Function to determine which category a value falls into
-    function getCategoryIndex(accel) {
-        for (let i = 1; i < grades.length; i++) {
-            if (accel <= grades[i]) return i - 1;
-        }
-        return grades.length - 1; // Last category for highest values
-    }
+    // --- Updated Data Configuration for Behavior-Based Clustering ---
+    const behaviorTypes = ['Calm', 'Moderate', 'Slightly Unstable', 'Aggressive', 'Very Aggressive'];
+    const behaviorColors = {
+        'Calm': '#2c7bb6',
+        'Moderate': '#abd9e9', 
+        'Slightly Unstable': '#ffffbf',
+        'Aggressive': '#fdae61',
+        'Very Aggressive': '#d7191c'
+    };
 
     // *** MODIFIED AREA START ***
-    // Create an object to hold our layer groups, one for each acceleration category
+    // Create an object to hold our layer groups, one for each behavior type
     const overlayLayers = {};
     
-    // Create a Layer Group for each category and add it to the map by default
-    grades.forEach((grade, i) => {
-        const from = grade;
-        const to = grades[i + 1];
-        const labelText = from.toFixed(4) + (to ? ` &ndash; ${to.toFixed(4)}` : '+');
+    // Create a Layer Group for each behavior type and add it to the map by default
+    behaviorTypes.forEach(behavior => {
+        const color = behaviorColors[behavior];
+        const layerName = `<span style="background-color:${color}; padding: 1px 8px; border-radius: 3px;">&nbsp;</span> ${behavior}`;
         
-        // The key for the overlayLayers object will be the label shown in the control panel
-        const layerName = `<span style="background-color:${colors[i]}; padding: 1px 8px; border-radius: 3px;">&nbsp;</span> ${labelText}`;
-        
-        // Create an empty layer group for this category
+        // Create an empty layer group for this behavior
         overlayLayers[layerName] = L.layerGroup().addTo(map);
     });
 
     // --- Data Loading and Processing ---
-    fetch('bus_route.geojson')
+    fetch('bus_route_with_clusters.geojson')
         .then(response => response.json())
         .then(data => {
             // Process each feature and add it to the correct layer group
             data.features.forEach(feature => {
                 const props = feature.properties;
-                const accel = props.accel_mean;
-                const categoryIndex = getCategoryIndex(accel);
+                const behavior = props.behavior;
+                const color = props.color;
                 
                 const marker = L.circleMarker(
                     [feature.geometry.coordinates[1], feature.geometry.coordinates[0]], // [lat, lng]
                     {
                         radius: 6,
-                        fillColor: colors[categoryIndex],
+                        fillColor: color,
                         color: "#000",
                         weight: 1,
                         opacity: 1,
@@ -91,24 +127,138 @@
                     }
                 );
 
-                // Build the popup content
+                // Build comprehensive popup content with ALL available data
                 const popupContent = `
-                    <b>Timestamp:</b> ${props.timestamp}<br>
-                    <hr>
-                    <b>Mean Accel:</b> ${props.accel_mean.toFixed(3)} m/s²<br>
-                    <b>Accel Variance:</b> ${props.accel_variance.toFixed(3)} (m/s²)²<br>
-                    <hr>
-                    <b>X-Axis p99:</b> ${props.accel_stats_x_p99.toFixed(3)}<br>
-                    <b>Y-Axis p99:</b> ${props.accel_stats_y_p99.toFixed(3)}<br>
-                    <b>Z-Axis p99:</b> ${props.accel_stats_z_p99.toFixed(3)}<br>
+                    <div style="width: 320px; max-height: 400px; overflow-y: auto;">
+                        <!-- Header Section -->
+                        <div class="popup-section">
+                            <div style="text-align: center; margin-bottom: 10px;">
+                                <span class="behavior-badge" style="background-color: ${color};">${behavior} Driving</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">Timestamp:</span>
+                                <span class="data-value">${props.timestamp}</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">Location:</span>
+                                <span class="data-value">${feature.geometry.coordinates[1].toFixed(6)}, ${feature.geometry.coordinates[0].toFixed(6)}</span>
+                            </div>
+                        </div>
+
+                        <!-- Clustering Analysis Section -->
+                        <div class="popup-section">
+                            <div class="popup-header">🎯 Clustering Analysis</div>
+                            <div class="data-row">
+                                <span class="data-label">Cluster ID:</span>
+                                <span class="data-value highlight-value">${props.cluster}</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">Extreme Event Magnitude:</span>
+                                <span class="data-value highlight-value">${props.extreme_event_magnitude.toFixed(4)} m/s²</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">Instability Score:</span>
+                                <span class="data-value highlight-value">${props.instability_score.toFixed(4)} (m/s²)²</span>
+                            </div>
+                        </div>
+
+                        <!-- Basic Acceleration Statistics -->
+                        <div class="popup-section">
+                            <div class="popup-header">📊 Basic Acceleration Statistics</div>
+                            <div class="data-row">
+                                <span class="data-label">Mean Acceleration:</span>
+                                <span class="data-value">${props.accel_mean.toFixed(4)} m/s²</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">Acceleration Variance:</span>
+                                <span class="data-value">${props.accel_variance.toFixed(4)} (m/s²)²</span>
+                            </div>
+                        </div>
+
+                        <!-- X-Axis Acceleration Statistics -->
+                        <div class="popup-section">
+                            <div class="popup-header">📈 X-Axis Acceleration Percentiles</div>
+                            <div class="data-row">
+                                <span class="data-label">1st Percentile (p1):</span>
+                                <span class="data-value">${props.accel_stats_x_p1.toFixed(4)} m/s²</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">10th Percentile (p10):</span>
+                                <span class="data-value">${props.accel_stats_x_p10.toFixed(4)} m/s²</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">90th Percentile (p90):</span>
+                                <span class="data-value">${props.accel_stats_x_p90.toFixed(4)} m/s²</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">99th Percentile (p99):</span>
+                                <span class="data-value highlight-value">${props.accel_stats_x_p99.toFixed(4)} m/s²</span>
+                            </div>
+                        </div>
+
+                        <!-- Y-Axis Acceleration Statistics -->
+                        <div class="popup-section">
+                            <div class="popup-header">📈 Y-Axis Acceleration Percentiles</div>
+                            <div class="data-row">
+                                <span class="data-label">1st Percentile (p1):</span>
+                                <span class="data-value">${props.accel_stats_y_p1.toFixed(4)} m/s²</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">10th Percentile (p10):</span>
+                                <span class="data-value">${props.accel_stats_y_p10.toFixed(4)} m/s²</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">90th Percentile (p90):</span>
+                                <span class="data-value">${props.accel_stats_y_p90.toFixed(4)} m/s²</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">99th Percentile (p99):</span>
+                                <span class="data-value highlight-value">${props.accel_stats_y_p99.toFixed(4)} m/s²</span>
+                            </div>
+                        </div>
+
+                        <!-- Z-Axis Acceleration Statistics -->
+                        <div class="popup-section">
+                            <div class="popup-header">📈 Z-Axis Acceleration Percentiles</div>
+                            <div class="data-row">
+                                <span class="data-label">1st Percentile (p1):</span>
+                                <span class="data-value">${props.accel_stats_z_p1.toFixed(4)} m/s²</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">10th Percentile (p10):</span>
+                                <span class="data-value">${props.accel_stats_z_p10.toFixed(4)} m/s²</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">90th Percentile (p90):</span>
+                                <span class="data-value">${props.accel_stats_z_p90.toFixed(4)} m/s²</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">99th Percentile (p99):</span>
+                                <span class="data-value highlight-value">${props.accel_stats_z_p99.toFixed(4)} m/s²</span>
+                            </div>
+                        </div>
+
+                        <!-- Interpretation Section -->
+                        <div class="popup-section">
+                            <div class="popup-header">🔍 Data Interpretation</div>
+                            <div style="font-size: 11px; color: #666; line-height: 1.3;">
+                                <strong>Extreme Event Magnitude:</strong> Combined 3D acceleration vector magnitude from 99th percentiles - higher values indicate more severe acceleration events.<br><br>
+                                <strong>Instability Score:</strong> Acceleration variance - higher values indicate more erratic or jerky motion.<br><br>
+                                <strong>Percentiles:</strong> p1/p10 show typical low values, p90/p99 show extreme high values for each axis.
+                            </div>
+                        </div>
+                    </div>
                 `;
-                marker.bindPopup(popupContent);
                 
-                // Find the correct layer group by its name and add the marker
-                // This is a bit verbose but ensures the marker goes to the right place
-                const layerName = Object.keys(overlayLayers)[categoryIndex];
-                if (layerName) {
-                    overlayLayers[layerName].addLayer(marker);
+                marker.bindPopup(popupContent, {
+                    maxWidth: 350,
+                    maxHeight: 450
+                });
+                
+                // Find the correct layer group by behavior name and add the marker
+                const layerKey = Object.keys(overlayLayers).find(key => key.includes(behavior));
+                if (layerKey) {
+                    overlayLayers[layerKey].addLayer(marker);
                 }
             });
 
@@ -117,11 +267,13 @@
             if (allPointsLayer.getBounds().isValid()) {
                 map.fitBounds(allPointsLayer.getBounds());
             }
+        })
+        .catch(error => {
+            console.error('Error loading GeoJSON:', error);
+            alert('Error loading bus data. Please check that your GeoJSON file is accessible.');
         });
 
     // Add the layer control panel to the map
-    // The first argument is for base layers (only one can be selected)
-    // The second argument is for overlay layers (can be toggled with checkboxes)
     L.control.layers(null, overlayLayers, { collapsed: false }).addTo(map);
     // *** MODIFIED AREA END ***
 
