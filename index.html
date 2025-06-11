@@ -18,6 +18,10 @@
             background: rgba(255, 255, 255, 0.9);
             padding: 10px;
             border-radius: 5px;
+            position: absolute !important;
+            top: 65px !important;
+            right: 10px !important;
+            z-index: 1000;
         }
         .leaflet-control-layers-base label, .leaflet-control-layers-overlays label {
             display: flex;
@@ -147,12 +151,6 @@
         }
         .close-button:hover {
             color: #333;
-        }
-        .leaflet-control-layers {
-            top: 65px !important; /* Push legend below the button */
-            left: 20px !important;
-            position: absolute !important;
-            z-index: 1000;
         }
     </style>
 </head>
