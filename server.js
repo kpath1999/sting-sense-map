@@ -8,17 +8,45 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
+// Simple in-memory cache for responses
+const responseCache = new Map();
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', env: process.env.NODE_ENV });
 });
 
-app.post('/api/generate-summary', async (req, res) => {
-    console.log('Received request to /api/generate-summary');
+// Validate request body
+const validateRequest = (req, res, next) => {
+    const { prompt } = req.body;
+    if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
+        return res.status(400).json({ error: 'Invalid prompt. Please provide a non-empty string.' });
+    }
+    next();
+};
+
+// Generate a cache key from the prompt
+const generateCacheKey = (prompt) => {
+    return prompt.trim().toLowerCase();
+};
+
+app.post('/api/generate-summary', validateRequest, async (req, res) => {
+    const { prompt } = req.body;
+    const cacheKey = generateCacheKey(prompt);
+
+    // Check cache first
+    if (responseCache.has(cacheKey)) {
+        console.log('Serving from cache');
+        return res.json(responseCache.get(cacheKey));
+    }
+
     try {
         if (!process.env.GROQ_API_KEY) {
             console.error('GROQ_API_KEY is not defined');
-            return res.status(500).json({ error: 'API key not configured' });
+            return res.status(500).json({ 
+                error: 'API configuration error',
+                message: 'Please contact the administrator'
+            });
         }
 
         console.log('Making request to Groq API...');
@@ -32,24 +60,49 @@ app.post('/api/generate-summary', async (req, res) => {
                 model: "meta-llama/llama-4-scout-17b-16e-instruct",
                 messages: [{
                     role: "user",
-                    content: req.body.prompt
-                }]
+                    content: prompt
+                }],
+                temperature: 0.7,
+                max_tokens: 500
             })
         });
 
         if (!response.ok) {
             const errorData = await response.json();
             console.error('Groq API error:', errorData);
-            return res.status(response.status).json({ error: 'Groq API request failed', details: errorData });
+            
+            // Return a user-friendly error message
+            return res.status(response.status).json({ 
+                error: 'Unable to generate response',
+                message: 'Please try again later'
+            });
         }
 
         const data = await response.json();
         console.log('Successfully received response from Groq API');
+
+        // Cache the successful response
+        responseCache.set(cacheKey, data);
+
         res.json(data);
     } catch (error) {
         console.error('Error in generate-summary endpoint:', error);
-        res.status(500).json({ error: 'Failed to generate summary', details: error.message });
+        
+        // Return a user-friendly error message
+        res.status(500).json({ 
+            error: 'Service temporarily unavailable',
+            message: 'Please try again later'
+        });
     }
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+    console.error('Unhandled error:', err);
+    res.status(500).json({ 
+        error: 'Internal server error',
+        message: 'Please try again later'
+    });
 });
 
 // For local development
