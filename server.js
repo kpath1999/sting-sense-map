@@ -6,7 +6,17 @@ const fetch = require('node-fetch');
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Add this line after your existing middleware
 app.use(express.static('public'));
+
+// Add a catch-all route for your main page
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Make sure to require path at the top
+const path = require('path');
 
 // Simple in-memory cache for responses
 const responseCache = new Map();

@@ -8,12 +8,12 @@
   ],
   "routes": [
     {
-      "src": "/api/generate-summary",
+      "src": "/api/(.*)",
       "dest": "/server.js"
     },
     {
       "src": "/(.*)",
-      "dest": "/index.html"
+      "dest": "/server.js"
     }
   ]
 }
