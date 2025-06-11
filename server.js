@@ -10,6 +10,12 @@ app.use(express.static('public'));
 
 app.post('/api/generate-summary', async (req, res) => {
     try {
+        if (!process.env.GROQ_API_KEY) {
+            console.error('GROQ_API_KEY is not defined');
+            return res.status(500).json({ error: 'API key not configured' });
+        }
+
+        console.log('Making request to Groq API...');
         const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
             headers: {
@@ -25,15 +31,27 @@ app.post('/api/generate-summary', async (req, res) => {
             })
         });
 
+        if (!response.ok) {
+            const errorData = await response.json();
+            console.error('Groq API error:', errorData);
+            return res.status(response.status).json({ error: 'Groq API request failed', details: errorData });
+        }
+
         const data = await response.json();
+        console.log('Successfully received response from Groq API');
         res.json(data);
     } catch (error) {
-        console.error('Error:', error);
-        res.status(500).json({ error: 'Failed to generate summary' });
+        console.error('Error in generate-summary endpoint:', error);
+        res.status(500).json({ error: 'Failed to generate summary', details: error.message });
     }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-}); 
+// For Vercel serverless functions
+if (process.env.NODE_ENV !== 'production') {
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+    });
+}
+
+module.exports = app; 
