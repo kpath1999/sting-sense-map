@@ -392,7 +392,7 @@
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify(summaryData)
+            body: JSON.stringify({ prompt: summaryPrompt })
         })
         .then(response => {
             if (!response.ok) {
