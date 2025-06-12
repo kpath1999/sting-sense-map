@@ -394,11 +394,7 @@
 
         try {
             // Create a prompt based on the data
-            const prompt = `Analyze the following bus route data and provide a high-level summary of the driving behavior patterns around campus. Focus on:
-1. Overall distribution of driving behaviors
-2. Notable patterns or clusters
-3. Areas that might need attention
-4. General observations about the route
+            const prompt = `Write a 100-word engaging story about the driving patterns across Georgia Tech's campus based on this data. Focus on creating a narrative that flows naturally and captures the essence of how buses move through campus. Avoid technical jargon and make it accessible to any reader. Don't use any formatting or bold text - keep it as plain text.
 
 Data points: ${allData.length}
 Behavior types: ${behaviorTypes.join(', ')}`;
@@ -418,13 +414,8 @@ Behavior types: ${behaviorTypes.join(', ')}`;
             const data = await response.json();
             const summary = data.choices[0].message.content;
             
-            // Format the summary with proper HTML
-            summaryText.innerHTML = summary.split('\n').map(line => {
-                if (line.startsWith('#')) {
-                    return `<h3>${line.replace(/^#+\s*/, '')}</h3>`;
-                }
-                return `<p>${line}</p>`;
-            }).join('');
+            // Display the summary as plain text
+            summaryText.innerHTML = `<p style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">${summary}</p>`;
         } catch (error) {
             console.error('Error generating summary:', error);
             summaryText.innerHTML = `
