@@ -21,7 +21,11 @@ const responseCache = new Map();
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', env: process.env.NODE_ENV });
+    res.json({ 
+        status: 'ok', 
+        env: process.env.NODE_ENV,
+        hasApiKey: !!process.env.GROQ_API_KEY 
+    });
 });
 
 // Validate request body
@@ -118,6 +122,8 @@ if (process.env.NODE_ENV !== 'production') {
     const PORT = process.env.PORT || 3000;
     app.listen(PORT, () => {
         console.log(`Server running on port ${PORT}`);
+        console.log(`Environment: ${process.env.NODE_ENV}`);
+        console.log(`API Key present: ${!!process.env.GROQ_API_KEY}`);
     });
 }
 

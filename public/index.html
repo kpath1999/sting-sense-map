@@ -376,131 +376,64 @@
     // Add the layer control panel to the map
     L.control.layers(null, overlayLayers, { collapsed: false }).addTo(map);
 
-    // Function to generate summary
-    function generateSummary() {
-        // Show loading state
-        document.getElementById('summaryText').innerHTML = 'Analyzing route data...';
+    // Add these functions for summary generation
+    function showSummaryModal() {
         document.getElementById('modalOverlay').style.display = 'block';
         document.getElementById('summaryModal').style.display = 'block';
-
-        // Process data for LLM input
-        const summaryData = processDataForSummary(allData);
-        
-        // Call your backend endpoint instead of Groq directly
-        fetch('/api/generate-summary', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ prompt: summaryPrompt })
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.summary) {
-                document.getElementById('summaryText').innerHTML = data.summary;
-            } else {
-                throw new Error('Invalid response format from API');
-            }
-        })
-        .catch(error => {
-            console.error('Error generating summary:', error);
-            document.getElementById('summaryText').innerHTML = 'Error generating summary. Please try again.';
-        });
     }
 
-    // Function to process data for summary
-    function processDataForSummary(data) {
-        // Group data by geographic regions (you can define these based on coordinates)
-        const regions = {
-            'Central Campus (Academic Core)': { lat: [33.7730, 33.7780], lng: [-84.3990, -84.3940] },
-            'Ferst Drive Corridor': { lat: [33.7750, 33.7800], lng: [-84.4050, -84.3950] },
-            'West Campus': { lat: [33.7730, 33.7820], lng: [-84.4080, -84.4000] },
-            'East Campus': { lat: [33.7710, 33.7780], lng: [-84.3940, -84.3880] },
-            'Tech Square': { lat: [33.7760, 33.7800], lng: [-84.3900, -84.3860] },
-            'John Lewis Student Center & Campanile': { lat: [33.7745, 33.7765], lng: [-84.3980, -84.3960] },
-            'Midtown Atlanta': { lat: [33.7750, 33.7950], lng: [-84.3900, -84.3800] },
-            'Home Park': { lat: [33.7800, 33.7880], lng: [-84.4050, -84.3980] },
-            'Atlantic Station': { lat: [33.7880, 33.7950], lng: [-84.4000, -84.3930] }
-        };
-
-        const regionData = {};
-        
-        // Process data for each region
-        for (const [region, bounds] of Object.entries(regions)) {
-            const regionPoints = data.filter(point => {
-                const lat = point.geometry.coordinates[1];
-                const lng = point.geometry.coordinates[0];
-                return lat >= bounds.lat[0] && lat <= bounds.lat[1] &&
-                       lng >= bounds.lng[0] && lng <= bounds.lng[1];
-            });
-
-            if (regionPoints.length > 0) {
-                regionData[region] = {
-                    count: regionPoints.length,
-                    behaviors: regionPoints.map(p => p.properties.behavior),
-                    extremeEvents: regionPoints.map(p => p.properties.extreme_event_magnitude),
-                    instabilityScores: regionPoints.map(p => p.properties.instability_score),
-                    accelStats: {
-                        x: {
-                            p1: regionPoints.map(p => p.properties.accel_stats_x_p1),
-                            p99: regionPoints.map(p => p.properties.accel_stats_x_p99)
-                        },
-                        y: {
-                            p1: regionPoints.map(p => p.properties.accel_stats_y_p1),
-                            p99: regionPoints.map(p => p.properties.accel_stats_y_p99)
-                        },
-                        z: {
-                            p1: regionPoints.map(p => p.properties.accel_stats_z_p1),
-                            p99: regionPoints.map(p => p.properties.accel_stats_z_p99)
-                        }
-                    }
-                };
-            }
-        }
-
-        return regionData;
-    }
-
-    // Function to generate LLM prompt
-    function generatePrompt(summaryData) {
-        let prompt = "Analyze the following bus route data and provide a natural language summary of the driving conditions and behavior patterns:\n\n";
-        
-        for (const [region, data] of Object.entries(summaryData)) {
-            prompt += `Region: ${region}\n`;
-            prompt += `Number of data points: ${data.count}\n`;
-            prompt += `Behavior distribution: ${JSON.stringify(data.behaviors)}\n`;
-            prompt += `Average extreme event magnitude: ${average(data.extremeEvents)}\n`;
-            prompt += `Average instability score: ${average(data.instabilityScores)}\n`;
-            prompt += `Acceleration statistics:\n`;
-            prompt += `X-axis: p1=${average(data.accelStats.x.p1)}, p99=${average(data.accelStats.x.p99)}\n`;
-            prompt += `Y-axis: p1=${average(data.accelStats.y.p1)}, p99=${average(data.accelStats.y.p99)}\n`;
-            prompt += `Z-axis: p1=${average(data.accelStats.z.p1)}, p99=${average(data.accelStats.z.p99)}\n\n`;
-        }
-
-        prompt += "Please provide a natural language summary of the driving conditions and behavior patterns observed in each region, focusing on:\n";
-        prompt += "1. Overall ride quality\n";
-        prompt += "2. Frequency of stops or slowdowns\n";
-        prompt += "3. Presence of bumps or rough road conditions\n";
-        prompt += "4. Any notable patterns in driving behavior\n";
-        prompt += "Use natural language and be specific about locations and conditions.";
-
-        return prompt;
-    }
-
-    // Helper function to calculate average
-    function average(arr) {
-        return arr.reduce((a, b) => a + b, 0) / arr.length;
-    }
-
-    // Function to close summary modal
     function closeSummary() {
         document.getElementById('modalOverlay').style.display = 'none';
         document.getElementById('summaryModal').style.display = 'none';
+    }
+
+    async function generateSummary() {
+        showSummaryModal();
+        const summaryText = document.getElementById('summaryText');
+        summaryText.innerHTML = 'Generating summary...';
+
+        try {
+            // Create a prompt based on the data
+            const prompt = `Analyze the following bus route data and provide a high-level summary of the driving behavior patterns around campus. Focus on:
+1. Overall distribution of driving behaviors
+2. Notable patterns or clusters
+3. Areas that might need attention
+4. General observations about the route
+
+Data points: ${allData.length}
+Behavior types: ${behaviorTypes.join(', ')}`;
+
+            const response = await fetch('/api/generate-summary', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ prompt })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to generate summary');
+            }
+
+            const data = await response.json();
+            const summary = data.choices[0].message.content;
+            
+            // Format the summary with proper HTML
+            summaryText.innerHTML = summary.split('\n').map(line => {
+                if (line.startsWith('#')) {
+                    return `<h3>${line.replace(/^#+\s*/, '')}</h3>`;
+                }
+                return `<p>${line}</p>`;
+            }).join('');
+        } catch (error) {
+            console.error('Error generating summary:', error);
+            summaryText.innerHTML = `
+                <div style="color: #d7191c; padding: 10px; background-color: #f8d7da; border-radius: 4px;">
+                    <p>Failed to generate summary. Please try again later.</p>
+                    <p style="font-size: 0.9em;">Error: ${error.message}</p>
+                </div>
+            `;
+        }
     }
 </script>
 
