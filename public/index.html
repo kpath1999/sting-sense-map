@@ -471,23 +471,21 @@
         
         // --- New, Context-Rich Prompt ---
         const prompt = `
-            You are a transportation safety analyst. Analyze the following bus telematics data point from the Georgia Tech campus and provide a likely explanation.
+            You are a transportation safety analyst providing a concise, 50-word summary for a specific driving event on the Georgia Tech campus. Your summary must be a single block of plaintext with no special formatting.
+
+            First, qualitatively describe the event based on the data (e.g., "a sharp right turn with high vertical shock").
+            Second, using the provided context, hypothesize the most likely cause for this behavior.
 
             Context:
-            - Named Location: This event occurred in or near '${zoneName}'.
+            - Named Location: The event occurred near '${zoneName}'.
             - Neighborhood Activity: ${neighborSummary}
 
-            Data Point Details:
-            - Timestamp: ${props.timestamp}
-            - Behavior Cluster: '${props.behavior}'
-            - Instability Score (variance): ${props.instability_score.toFixed(4)}
-            - Extreme Event Magnitude: ${props.extreme_event_magnitude.toFixed(4)}
-            - Acceleration 99th Percentiles:
-              - X-axis (lateral): ${props.accel_stats_x_p99.toFixed(4)} m/s²
-              - Y-axis (longitudinal): ${props.accel_stats_y_p99.toFixed(4)} m/s²
-              - Z-axis (vertical): ${props.accel_stats_z_p99.toFixed(4)} m/s²
-            
-            Based on all of this information, what is the most probable cause for this specific event? Be concise, reference the context provided, and explain your reasoning.
+            Data Point:
+            - Behavior: '${props.behavior}'
+            - Instability Score: ${props.instability_score.toFixed(2)}
+            - Key Accelerations (99th percentile): X-axis ${props.accel_stats_x_p99.toFixed(2)} m/s², Z-axis ${props.accel_stats_z_p99.toFixed(2)} m/s²
+
+            Provide the final 50-word summary below.
         `;
 
         try {
@@ -567,10 +565,15 @@
                 - Average Instability Score: ${h.avgInstability.toFixed(4)}
             `).join('');
 
-            const prompt = `You are a professional traffic analyst summarizing conditions on the Georgia Tech bus routes. Based on the following data-driven hotspots identified from sensor readings, write a 200-word analysis of the overall route conditions. Focus on interpreting these specific hotspots, explaining what they indicate about driving behavior and potential environmental factors in those areas. Do not invent information not present in the data.
+            const prompt = `You are a transportation analyst with expert knowledge of the Georgia Tech campus environment. Your task is to write a 200-word executive summary based on the telematics hotspots provided below.
 
-                ${hotspotPrompts}
-            `;
+For each hotspot, first, describe its location in relation to major campus landmarks (e.g., "near Tech Green," "on the route towards Midtown via Tech Square"). Second, analyze the data to hypothesize the likely cause of the driving behavior. For example, "High instability near Clough Commons is likely due to frequent stop-and-go traffic from pedestrian crossings."
+
+Do not just state the data; interpret it. Use your knowledge of campus life to provide context. Be concise and authoritative.
+
+Data-Driven Hotspots:
+${hotspotPrompts}
+`;
 
             const response = await fetch('/api/generate-summary', {
                 method: 'POST',
