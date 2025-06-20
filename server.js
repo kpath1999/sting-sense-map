@@ -108,6 +108,56 @@ app.post('/api/generate-summary', validateRequest, async (req, res) => {
     }
 });
 
+app.post('/api/generate-insight', validateRequest, async (req, res) => {
+    const { prompt } = req.body;
+    const cacheKey = generateCacheKey(prompt);
+
+    if (responseCache.has(cacheKey)) {
+        console.log('Serving insight from cache');
+        return res.json(responseCache.get(cacheKey));
+    }
+
+    try {
+        if (!process.env.GROQ_API_KEY) {
+            console.error('GROQ_API_KEY is not defined');
+            return res.status(500).json({ error: 'API configuration error' });
+        }
+
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
+            },
+            body: JSON.stringify({
+                model: "meta-llama/llama-4-scout-17b-16e-instruct",
+                messages: [{
+                    role: "user",
+                    content: prompt
+                }],
+                temperature: 0.5,
+                max_tokens: 150
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            console.error('Groq API error on insight generation:', errorData);
+            return res.status(response.status).json({ error: 'Unable to generate insight' });
+        }
+
+        const data = await response.json();
+        console.log('Successfully received insight from Groq API');
+
+        responseCache.set(cacheKey, data);
+        res.json(data);
+
+    } catch (error) {
+        console.error('Error in generate-insight endpoint:', error);
+        res.status(500).json({ error: 'Service temporarily unavailable' });
+    }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error('Unhandled error:', err);

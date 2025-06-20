@@ -210,7 +210,7 @@
             allData = data.features;
 
             // Process each feature and add it to the correct layer group
-            data.features.forEach(feature => {
+            data.features.forEach((feature, index) => {
                 const props = feature.properties;
                 const behavior = props.behavior;
                 const color = props.color;
@@ -338,6 +338,15 @@
                             </div>
                         </div>
 
+                        <!-- AI Insight Section -->
+                        <div class="popup-section">
+                            <div class="popup-header">🤖 AI Insight</div>
+                            <div id="ai-insight-${index}" style="font-size: 12px; color: #333; line-height: 1.4; min-height: 40px; padding: 5px; background-color: #f7f7f7; border-radius: 3px;">
+                                Click the button for an AI-powered explanation.
+                            </div>
+                            <button id="ai-insight-btn-${index}" onclick='getAiInsight(${index})' style="margin-top: 10px; padding: 6px 12px; background-color: #2c7bb6; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;">Get AI Insight</button>
+                        </div>
+
                         <!-- Interpretation Section -->
                         <div class="popup-section">
                             <div class="popup-header">🔍 Data Interpretation</div>
@@ -385,6 +394,62 @@
     function closeSummary() {
         document.getElementById('modalOverlay').style.display = 'none';
         document.getElementById('summaryModal').style.display = 'none';
+    }
+
+    async function getAiInsight(index) {
+        const feature = allData[index];
+        const props = feature.properties;
+        const insightContainer = document.getElementById(`ai-insight-${index}`);
+        const insightButton = document.getElementById(`ai-insight-btn-${index}`);
+
+        if (!feature) {
+            insightContainer.innerHTML = 'Error: Data not found.';
+            return;
+        }
+
+        insightButton.disabled = true;
+        insightButton.textContent = 'Analyzing...';
+        insightContainer.innerHTML = 'Generating AI insight, please wait...';
+
+        // Construct a detailed prompt for the LLM
+        const prompt = `
+            Analyze the following bus telematics data point and provide a brief, likely explanation for the event. The location is on a university campus (Georgia Tech).
+            - Timestamp: ${props.timestamp}
+            - Location: ${feature.geometry.coordinates[1].toFixed(5)}, ${feature.geometry.coordinates[0].toFixed(5)}
+            - Behavior Cluster: '${props.behavior}'
+            - Instability Score (variance): ${props.instability_score.toFixed(4)}
+            - Extreme Event Magnitude: ${props.extreme_event_magnitude.toFixed(4)}
+            - Acceleration 99th Percentiles:
+              - X-axis (lateral): ${props.accel_stats_x_p99.toFixed(4)} m/s²
+              - Y-axis (longitudinal): ${props.accel_stats_y_p99.toFixed(4)} m/s²
+              - Z-axis (vertical): ${props.accel_stats_z_p99.toFixed(4)} m/s²
+            
+            Based on these metrics and the campus environment, what is the most likely cause? (e.g., sudden braking for a pedestrian, sharp turn, speed bump, pothole, normal acceleration/deceleration). Be concise and clear.
+        `;
+
+        try {
+            const response = await fetch('/api/generate-insight', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to get AI insight from server.');
+            }
+
+            const data = await response.json();
+            const insight = data.choices[0].message.content;
+
+            insightContainer.innerHTML = insight;
+            insightButton.style.display = 'none'; // Hide button after success
+
+        } catch (error) {
+            console.error('Error getting AI insight:', error);
+            insightContainer.innerHTML = 'Sorry, unable to generate an insight at this time. Please try again later.';
+            insightButton.disabled = false;
+            insightButton.textContent = 'Get AI Insight';
+        }
     }
 
     async function generateSummary() {
