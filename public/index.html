@@ -385,6 +385,41 @@
     // Add the layer control panel to the map
     L.control.layers(null, overlayLayers, { collapsed: false }).addTo(map);
 
+    // --- New: Pre-defined campus zones for contextual analysis ---
+    const campusZones = [
+        { name: 'Clough Commons & Library Crosswalk', bounds: [[33.774, -84.398], [33.776, -84.395]] },
+        { name: 'Ferst Dr & Atlantic Dr Intersection', bounds: [[33.778, -84.398], [33.780, -84.396]] },
+        { name: 'Tech Square', bounds: [[33.776, -84.390], [33.778, -84.388]] },
+        { name: 'Campus Center & Student Center', bounds: [[33.773, -84.393], [33.775, -84.390]] }
+    ];
+
+    // --- New: Helper function to calculate distance between two lat-lon points ---
+    function getDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371e3; // metres
+        const φ1 = lat1 * Math.PI/180;
+        const φ2 = lat2 * Math.PI/180;
+        const Δφ = (lat2-lat1) * Math.PI/180;
+        const Δλ = (lon2-lon1) * Math.PI/180;
+
+        const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                  Math.cos(φ1) * Math.cos(φ2) *
+                  Math.sin(Δλ/2) * Math.sin(Δλ/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+        return R * c; // in metres
+    }
+
+    // --- New: Helper function to find which zone a point is in ---
+    function getZoneName(lat, lon) {
+        for (const zone of campusZones) {
+            const [[minLat, minLon], [maxLat, maxLon]] = zone.bounds;
+            if (lat >= minLat && lat <= maxLat && lon >= minLon && lon <= maxLon) {
+                return zone.name;
+            }
+        }
+        return 'an un-named area';
+    }
+
     // Add these functions for summary generation
     function showSummaryModal() {
         document.getElementById('modalOverlay').style.display = 'block';
@@ -411,11 +446,39 @@
         insightButton.textContent = 'Analyzing...';
         insightContainer.innerHTML = 'Generating AI insight, please wait...';
 
-        // Construct a detailed prompt for the LLM
+        // --- Enhanced Context Generation ---
+        const [lon, lat] = feature.geometry.coordinates;
+        const zoneName = getZoneName(lat, lon);
+
+        // Find neighbors
+        const radius = 50; // 50 meters
+        const neighbors = allData.filter((otherFeature, i) => {
+            if (i === index) return false;
+            const [otherLon, otherLat] = otherFeature.geometry.coordinates;
+            return getDistance(lat, lon, otherLat, otherLon) <= radius;
+        });
+
+        let neighborSummary = 'No other events detected nearby.';
+        if (neighbors.length > 0) {
+            const behaviorCounts = neighbors.reduce((acc, curr) => {
+                const behavior = curr.properties.behavior;
+                acc[behavior] = (acc[behavior] || 0) + 1;
+                return acc;
+            }, {});
+            const summaryParts = Object.entries(behaviorCounts).map(([b, c]) => `${c} ${b}`);
+            neighborSummary = `The immediate area (${radius}m radius) contains ${neighbors.length} other event(s): ${summaryParts.join(', ')}.`;
+        }
+        
+        // --- New, Context-Rich Prompt ---
         const prompt = `
-            Analyze the following bus telematics data point and provide a brief, likely explanation for the event. The location is on a university campus (Georgia Tech).
+            You are a transportation safety analyst. Analyze the following bus telematics data point from the Georgia Tech campus and provide a likely explanation.
+
+            Context:
+            - Named Location: This event occurred in or near '${zoneName}'.
+            - Neighborhood Activity: ${neighborSummary}
+
+            Data Point Details:
             - Timestamp: ${props.timestamp}
-            - Location: ${feature.geometry.coordinates[1].toFixed(5)}, ${feature.geometry.coordinates[0].toFixed(5)}
             - Behavior Cluster: '${props.behavior}'
             - Instability Score (variance): ${props.instability_score.toFixed(4)}
             - Extreme Event Magnitude: ${props.extreme_event_magnitude.toFixed(4)}
@@ -424,7 +487,7 @@
               - Y-axis (longitudinal): ${props.accel_stats_y_p99.toFixed(4)} m/s²
               - Z-axis (vertical): ${props.accel_stats_z_p99.toFixed(4)} m/s²
             
-            Based on these metrics and the campus environment, what is the most likely cause? (e.g., sudden braking for a pedestrian, sharp turn, speed bump, pothole, normal acceleration/deceleration). Be concise and clear.
+            Based on all of this information, what is the most probable cause for this specific event? Be concise, reference the context provided, and explain your reasoning.
         `;
 
         try {
@@ -458,11 +521,56 @@
         summaryText.innerHTML = 'Generating summary...';
 
         try {
-            // Create a prompt based on the data
-            const prompt = `Write a 200-word analysis of traffic conditions around Georgia Tech's campus based on this data. Focus on specific locations and explain the driving behavior patterns you observe. For example, if you notice aggressive driving in an area, explain why you think this might be happening (e.g., frequent stops, road conditions, traffic patterns). Be specific about locations like Midtown, Ferst Drive, Tech Square, etc. Format as a single, flowing paragraph in plain text without any special formatting.
+            // --- New: Client-side aggregation to find hotspots ---
+            const clusters = allData.reduce((acc, feature) => {
+                const clusterId = feature.properties.cluster;
+                if (!acc[clusterId]) {
+                    acc[clusterId] = { points: [], behaviors: {}, instability: 0 };
+                }
+                acc[clusterId].points.push(feature);
+                const behavior = feature.properties.behavior;
+                acc[clusterId].behaviors[behavior] = (acc[clusterId].behaviors[behavior] || 0) + 1;
+                acc[clusterId].instability += feature.properties.instability_score;
+                return acc;
+            }, {});
 
-Data points: ${allData.length}
-Behavior types: ${behaviorTypes.join(', ')}`;
+            const clusterAnalysis = Object.entries(clusters).map(([id, data]) => {
+                const totalPoints = data.points.length;
+                const avgInstability = data.instability / totalPoints;
+                const dominantBehavior = Object.keys(data.behaviors).reduce((a, b) => data.behaviors[a] > data.behaviors[b] ? a : b);
+                const aggressiveCount = (data.behaviors['Aggressive'] || 0) + (data.behaviors['Very Aggressive'] || 0);
+                // Severity score: combination of aggressive acts and instability.
+                const severity = aggressiveCount * avgInstability; 
+                const [lon, lat] = data.points[0].geometry.coordinates;
+
+                return {
+                    id,
+                    totalPoints,
+                    avgInstability,
+                    dominantBehavior,
+                    aggressiveCount,
+                    severity,
+                    locationName: getZoneName(lat, lon)
+                };
+            });
+            
+            // Sort by severity and take top 3
+            clusterAnalysis.sort((a, b) => b.severity - a.severity);
+            const topHotspots = clusterAnalysis.slice(0, 3);
+            
+            // --- New, Data-Driven Prompt ---
+            const hotspotPrompts = topHotspots.map((h, i) => `
+                Hotspot ${i+1} (in/near ${h.locationName}):
+                - Number of Events: ${h.totalPoints}
+                - Dominant Behavior: ${h.dominantBehavior}
+                - Aggressive/Very Aggressive Events: ${h.aggressiveCount} (${Math.round(h.aggressiveCount/h.totalPoints*100)}%)
+                - Average Instability Score: ${h.avgInstability.toFixed(4)}
+            `).join('');
+
+            const prompt = `You are a professional traffic analyst summarizing conditions on the Georgia Tech bus routes. Based on the following data-driven hotspots identified from sensor readings, write a 200-word analysis of the overall route conditions. Focus on interpreting these specific hotspots, explaining what they indicate about driving behavior and potential environmental factors in those areas. Do not invent information not present in the data.
+
+                ${hotspotPrompts}
+            `;
 
             const response = await fetch('/api/generate-summary', {
                 method: 'POST',
