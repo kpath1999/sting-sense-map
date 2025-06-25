@@ -387,10 +387,17 @@
 
     // --- New: Pre-defined campus zones for contextual analysis ---
     const campusZones = [
-        { name: 'Clough Commons & Library Crosswalk', bounds: [[33.774, -84.398], [33.776, -84.395]] },
-        { name: 'Ferst Dr & Atlantic Dr Intersection', bounds: [[33.778, -84.398], [33.780, -84.396]] },
-        { name: 'Tech Square', bounds: [[33.776, -84.390], [33.778, -84.388]] },
-        { name: 'Campus Center & Student Center', bounds: [[33.773, -84.393], [33.775, -84.390]] }
+        { name: 'Clough Commons & Library Crosswalk', center: [33.775, -84.3965] },
+        { name: 'Ferst Dr & Atlantic Dr Intersection', center: [33.779, -84.397] },
+        { name: 'Tech Square', center: [33.777, -84.389] },
+        { name: 'Campus Center & Student Center', center: [33.774, -84.3915] },
+        { name: 'Guggenheim Building', center: [33.7755, -84.394] },
+        { name: 'Tech Green', center: [33.776, -84.395] },
+        { name: 'Bobby Dodd Stadium', center: [33.773, -84.395] },
+        { name: 'North Avenue Apartments', center: [33.772, -84.392] },
+        { name: 'West Campus', center: [33.778, -84.401] },
+        { name: 'East Campus', center: [33.776, -84.385] },
+        { name: 'Midtown Area', center: [33.780, -84.385] }
     ];
 
     // --- New: Helper function to calculate distance between two lat-lon points ---
@@ -409,13 +416,22 @@
         return R * c; // in metres
     }
 
-    // --- New: Helper function to find which zone a point is in ---
+    // --- New: Helper function to find the closest zone within 200 meters ---
     function getZoneName(lat, lon) {
+        let closestZone = null;
+        let closestDistance = Infinity;
+        const maxDistance = 200; // 200 meters
+
         for (const zone of campusZones) {
-            const [[minLat, minLon], [maxLat, maxLon]] = zone.bounds;
-            if (lat >= minLat && lat <= maxLat && lon >= minLon && lon <= maxLon) {
-                return zone.name;
+            const distance = getDistance(lat, lon, zone.center[0], zone.center[1]);
+            if (distance < closestDistance && distance <= maxDistance) {
+                closestDistance = distance;
+                closestZone = zone;
             }
+        }
+
+        if (closestZone) {
+            return closestZone.name;
         }
         return 'an un-named area';
     }
@@ -565,13 +581,16 @@
                 - Average Instability Score: ${h.avgInstability.toFixed(4)}
             `).join('');
 
-            const prompt = `You are a transportation analyst with expert knowledge of the Georgia Tech campus environment. Your task is to write a 200-word executive summary based on the telematics hotspots provided below.
+            const prompt = `You are a transportation analyst writing for a general audience. Write a simple, clear 200-word summary of driving conditions on Georgia Tech's campus based on the data below.
 
-For each hotspot, first, describe its location in relation to major campus landmarks (e.g., "near Tech Green," "on the route towards Midtown via Tech Square"). Second, analyze the data to hypothesize the likely cause of the driving behavior. For example, "High instability near Clough Commons is likely due to frequent stop-and-go traffic from pedestrian crossings."
+Write in plain, everyday language that anyone can understand. Avoid technical terms like "instability scores" or "events." Instead, use simple descriptions like "smooth driving," "rough driving," or "sudden stops."
 
-Do not just state the data; interpret it. Use your knowledge of campus life to provide context. Be concise and authoritative.
+For each area mentioned:
+1. Describe where it is in simple terms (e.g., "near the library," "at the main entrance")
+2. Explain what the driving is like there (e.g., "drivers make sudden stops," "traffic flows smoothly")
+3. Suggest why this might be happening (e.g., "likely due to students crossing the street," "probably because of the traffic light")
 
-And lastly, do not add any formatting or HTML tags to the summary text. It should be plain text only. Start your summarization with "Based on the provided data, I can say that...".
+Make it sound like you're explaining this to someone who has never seen the data before. Be conversational and clear.
 
 Data-Driven Hotspots:
 ${hotspotPrompts}
