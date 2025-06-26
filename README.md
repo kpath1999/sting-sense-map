@@ -1,4 +1,4 @@
-# Georgia Tech's Gold Route Visualization
+# Sting Sense - Gold Route Visualization
 
 ## Ride Quality
 One of the key enhancements is using machine learning to detect and classify various events during bus rides. By applying clustering algorithms like K-Means or DBSCAN to existing bus data, different types of events such as "Smooth Ride," "Hard Braking," "Sharp Turn," or "Bumpy Road" can be identified and categorized. This approach goes beyond simple acceleration thresholds and uncovers hidden patterns in the data, offering a more intuitive and useful map. Instead of showing just "High Acceleration" zones, the map can display specific events based on data-driven clusters.
@@ -8,7 +8,7 @@ To implement this, the process begins by loading bus data into a Python script a
 ## Route Summary
 Adding an AI-powered route summary feature can significantly enrich the user experience. With a simple "Summarize Route" button, users can obtain a human-readable, narrative summary of the bus trip, which can include key statistics like trip duration, average speed, and the number of specific events (e.g., bumpy roads). By integrating an LLM API such as OpenAI’s GPT or Anthropic's Claude, raw data can be transformed into a comprehensive summary.
 
-For example, the LLM could generate a summary like: "This 25-minute bus trip was mostly smooth, but encountered three sections of significant vibration near the Georgia Tech campus, likely due to road construction. The bus performed one hard braking event near the Arts Center MARTA station." This storytelling layer makes the data much more accessible and engaging for users.
+For example, the LLM could generate a summary like: "This 25-minute bus trip was mostly smooth, but encountered three sections of significant vibration near campus, likely due to road construction. The bus performed one hard braking event near the Arts Center MARTA station." This storytelling layer makes the data much more accessible and engaging for users.
 
 To implement this feature, a button must be added to the front-end interface. When clicked, the button triggers a request to a serverless backend, which securely calls the LLM API. The backend processes the relevant statistics and sends them to the LLM, which generates a summary. This summary is then returned to the frontend and displayed to the user.
 
