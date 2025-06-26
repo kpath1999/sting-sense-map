@@ -845,7 +845,7 @@
             - Traffic Level: ${temporalContext.trafficLevel}
             - Pedestrian Activity: ${temporalContext.pedestrianActivity}
             - Technical Metrics: Instability ${props.instability_score.toFixed(2)}, 
-              Peak accelerations X: ${props.accel_stats_x_p99.toFixed(2)} m/s², Z: ${props.accel_stats_z_p99.toFixed(2)} m/s²
+              Peak accelerations X: ${props.accel_stats_x_p99.toFixed(2)} m/s², Y: ${props.accel_stats_y_p99.toFixed(2)} m/s², Z: ${props.accel_stats_z_p99.toFixed(2)} m/s²
 
             Neighborhood Context: ${neighborAnalysis.summary}
 
@@ -969,8 +969,28 @@
                     return acc;
                 }, {});
                 
-                // Enhanced location context
-                const locationContext = getEnhancedLocationContext(lat, lon);
+                // Find the closest landmark (always, even if not within radius)
+                let closestLandmark = null;
+                let closestDistance = Infinity;
+                Object.values(campusLandmarks).flat().forEach(landmark => {
+                    const distance = getDistance(lat, lon, landmark.center[0], landmark.center[1]);
+                    if (distance < closestDistance) {
+                        closestDistance = distance;
+                        closestLandmark = landmark;
+                    }
+                });
+                let locationPhrase = '';
+                if (closestLandmark) {
+                    if (closestDistance <= (closestLandmark.radius || 50)) {
+                        locationPhrase = `at ${closestLandmark.name}`;
+                    } else if (closestDistance < 100) {
+                        locationPhrase = `just outside ${closestLandmark.name}`;
+                    } else {
+                        locationPhrase = `near ${closestLandmark.name}`;
+                    }
+                } else {
+                    locationPhrase = 'somewhere on campus';
+                }
 
                 return {
                     id,
@@ -980,59 +1000,34 @@
                     aggressiveCount,
                     severity,
                     temporalPattern,
-                    locationContext,
-                    locationName: locationContext.primary ? locationContext.primary.name : 'an unidentified area'
+                    locationPhrase,
+                    landmarkType: closestLandmark ? closestLandmark.type : 'unknown',
+                    landmarkName: closestLandmark ? closestLandmark.name : ''
                 };
             });
             
             // Sort by severity and take top 3
             clusterAnalysis.sort((a, b) => b.severity - a.severity);
-            const topHotspots = clusterAnalysis.slice(0, 3);
+            const topAreas = clusterAnalysis.slice(0, 3);
             
-            // --- Enhanced, Context-Rich Prompt ---
-            const hotspotPrompts = topHotspots.map((h, i) => {
-                const temporalInfo = Object.entries(h.temporalPattern)
+            // --- Narrative Data Preparation ---
+            const areaNarratives = topAreas.map((area, i) => {
+                const temporalInfo = Object.entries(area.temporalPattern)
                     .sort((a, b) => b[1] - a[1])
                     .map(([time, count]) => `${count} ${time}`)
                     .join(', ');
-                
-                const locationDetails = h.locationContext.construction ? 
-                    `${h.locationName} (construction zone nearby)` : h.locationName;
-                
-                return `
-                Hotspot ${i+1} (${locationDetails}):
-                - Number of Events: ${h.totalPoints}
-                - Dominant Behavior: ${h.dominantBehavior}
-                - Aggressive/Very Aggressive Events: ${h.aggressiveCount} (${Math.round(h.aggressiveCount/h.totalPoints*100)}%)
-                - Average Instability Score: ${h.avgInstability.toFixed(4)}
-                - Temporal Pattern: Most events occur ${temporalInfo}
-                - Location Type: ${h.locationContext.primary ? h.locationContext.primary.type : 'unknown'}
-            `;
-            }).join('');
+                return `In the area ${area.locationPhrase}, there were ${area.totalPoints} notable moments, most often described as '${area.dominantBehavior.toLowerCase()}' driving. About ${Math.round(area.aggressiveCount/area.totalPoints*100)}% of these were more aggressive. Most activity happened during ${temporalInfo.replace(/,/g, ' and ')}.`;
+            });
 
-            const prompt = `You are explaining Georgia Tech campus driving patterns to campus safety officials. 
-Write a 200-word executive summary that prioritizes actionable insights.
+            // --- Narrative Prompt ---
+            const prompt = `You are a campus transportation observer writing a 200-word, single-paragraph, narrative summary for Georgia Tech officials. Your job is to describe the overall driving patterns on campus, referencing real campus places (never say 'unknown' or 'hotspot').
 
-Campus Context:
-- Georgia Tech has 15,000+ students, faculty, and staff
-- Heavy pedestrian traffic between classes (especially 10-11am, 2-3pm)
-- Multiple construction projects ongoing
-- Mix of delivery vehicles, personal cars, buses, and micro-mobility
-- Active urban campus with narrow roads and frequent crosswalks
+Write in smooth, natural, everyday language. Do not use lists, bullet points, or headings. Do not use technical terms like 'cluster', 'hotspot', 'event', or 'instability'. Instead, tell a story about what the driving is like in different parts of campus, always relating each area to a real Georgia Tech landmark. If an area is not exactly at a landmark, say it is 'near' or 'just outside' the closest known place. Make the report sound like a campus observer, not a chatbot. The text should be plain, with no formatting or special characters.
 
-For each hotspot, explain:
-1. WHERE: Specific location relative to major campus landmarks
-2. WHAT: The types of driving behaviors observed
-3. WHY: Likely causes based on campus features (pedestrian crossings, narrow roads, parking conflicts, construction, etc.)
-4. WHEN: If temporal patterns are apparent
-5. RECOMMENDATION: Specific safety or infrastructure suggestions
+Here are the key observations to weave into your story:
+${areaNarratives.join('\n')}
 
-Write in plain, everyday language that anyone can understand. Avoid technical terms like "instability scores" or "events." Instead, use simple descriptions like "smooth driving," "rough driving," or "sudden stops."
-
-Focus on practical insights that campus transportation can act upon.
-
-Data-Driven Hotspots:
-${hotspotPrompts}
+Begin your narrative now:
 `;
 
             const response = await fetch('/api/generate-summary', {
@@ -1050,8 +1045,8 @@ ${hotspotPrompts}
             const data = await response.json();
             const summary = data.choices[0].message.content;
             
-            // Display the summary as plain text
-            summaryText.innerHTML = `<p style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">${summary}</p>`;
+            // Display the summary as plain text (no HTML formatting)
+            summaryText.textContent = summary;
         } catch (error) {
             console.error('Error generating summary:', error);
             summaryText.innerHTML = `
