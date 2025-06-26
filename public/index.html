@@ -385,55 +385,403 @@
     // Add the layer control panel to the map
     L.control.layers(null, overlayLayers, { collapsed: false }).addTo(map);
 
-    // --- New: Pre-defined campus zones for contextual analysis ---
-    const campusZones = [
-        { name: 'Clough Commons & Library Crosswalk', center: [33.775, -84.3965] },
-        { name: 'Ferst Dr & Atlantic Dr Intersection', center: [33.779, -84.397] },
-        { name: 'Tech Square', center: [33.777, -84.389] },
-        { name: 'Campus Center & Student Center', center: [33.774, -84.3915] },
-        { name: 'Guggenheim Building', center: [33.7755, -84.394] },
-        { name: 'Tech Green', center: [33.776, -84.395] },
-        { name: 'Bobby Dodd Stadium', center: [33.773, -84.395] },
-        { name: 'North Avenue Apartments', center: [33.772, -84.392] },
-        { name: 'West Campus', center: [33.778, -84.401] },
-        { name: 'East Campus', center: [33.776, -84.385] },
-        { name: 'Midtown Area', center: [33.780, -84.385] }
-    ];
+    // --- Enhanced Geographic Landmark System ---
+    const campusLandmarks = {
+        buildings: [
+            { name: 'Klaus Advanced Computing Building', center: [33.777, -84.396], radius: 30, type: 'academic' },
+            { name: 'Student Center', center: [33.774, -84.3915], radius: 50, type: 'dining' },
+            { name: 'CRC (Campus Recreation Center)', center: [33.776, -84.404], radius: 40, type: 'recreation' },
+            { name: 'Clough Undergraduate Learning Commons', center: [33.775, -84.3965], radius: 35, type: 'academic' },
+            { name: 'Guggenheim Building', center: [33.7755, -84.394], radius: 25, type: 'academic' },
+            { name: 'Bobby Dodd Stadium', center: [33.773, -84.395], radius: 60, type: 'athletics' },
+            { name: 'North Avenue Apartments', center: [33.772, -84.392], radius: 45, type: 'residential' },
+            { name: 'Tech Tower', center: [33.775, -84.396], radius: 20, type: 'administrative' },
+            { name: 'Library', center: [33.775, -84.3965], radius: 30, type: 'academic' },
+            { name: 'Campus Center', center: [33.774, -84.3915], radius: 40, type: 'dining' },
+            { name: 'Howey Physics Building', center: [33.776, -84.395], radius: 25, type: 'academic' },
+            { name: 'Van Leer Electrical Engineering Building', center: [33.776, -84.395], radius: 30, type: 'academic' },
+            { name: 'College of Computing Building', center: [33.777, -84.396], radius: 25, type: 'academic' },
+            { name: 'Skiles Classroom Building', center: [33.775, -84.395], radius: 25, type: 'academic' },
+            { name: 'Ferst Center for the Arts', center: [33.774, -84.393], radius: 30, type: 'arts' }
+        ],
+        intersections: [
+            { name: 'Ferst Dr & Atlantic Dr', center: [33.779, -84.397], radius: 25, type: 'traffic' },
+            { name: 'North Ave & Techwood Dr', center: [33.771, -84.392], radius: 30, type: 'traffic' },
+            { name: 'Ferst Dr & State St', center: [33.775, -84.394], radius: 20, type: 'traffic' },
+            { name: 'Ferst Dr & Cherry St', center: [33.773, -84.394], radius: 20, type: 'traffic' },
+            { name: '10th St & Hemphill Ave', center: [33.777, -84.389], radius: 25, type: 'traffic' },
+            { name: '5th St & Spring St', center: [33.780, -84.385], radius: 25, type: 'traffic' }
+        ],
+        zones: [
+            { name: 'Tech Square District', center: [33.777, -84.389], radius: 150, type: 'commercial' },
+            { name: 'West Campus Housing', center: [33.778, -84.401], radius: 200, type: 'residential' },
+            { name: 'East Campus', center: [33.776, -84.385], radius: 180, type: 'academic' },
+            { name: 'Midtown Area', center: [33.780, -84.385], radius: 120, type: 'commercial' },
+            { name: 'Tech Green', center: [33.776, -84.395], radius: 80, type: 'recreation' },
+            { name: 'Historic District', center: [33.775, -84.396], radius: 100, type: 'historic' }
+        ],
+        transportation: [
+            { name: 'Tech Trolley Stop - Student Center', center: [33.774, -84.391], radius: 15, type: 'transit' },
+            { name: 'MARTA North Avenue Station', center: [33.771, -84.387], radius: 100, type: 'transit' },
+            { name: 'Tech Trolley Stop - Tech Square', center: [33.777, -84.389], radius: 15, type: 'transit' },
+            { name: 'Tech Trolley Stop - CRC', center: [33.776, -84.404], radius: 15, type: 'transit' },
+            { name: 'Bike Share Station - Student Center', center: [33.774, -84.3915], radius: 10, type: 'bikeshare' },
+            { name: 'Bike Share Station - Tech Square', center: [33.777, -84.389], radius: 10, type: 'bikeshare' }
+        ],
+        crosswalks: [
+            { name: 'Clough Commons Crosswalk', center: [33.775, -84.3965], radius: 15, type: 'pedestrian' },
+            { name: 'Student Center Crosswalk', center: [33.774, -84.3915], radius: 15, type: 'pedestrian' },
+            { name: 'Tech Square Crosswalk', center: [33.777, -84.389], radius: 15, type: 'pedestrian' },
+            { name: 'Bobby Dodd Crosswalk', center: [33.773, -84.395], radius: 15, type: 'pedestrian' }
+        ],
+        construction: [
+            { name: 'Construction Zone - West Campus', center: [33.778, -84.401], radius: 50, type: 'construction' },
+            { name: 'Construction Zone - Tech Square', center: [33.777, -84.389], radius: 40, type: 'construction' }
+        ]
+    };
 
-    // --- New: Helper function to calculate distance between two lat-lon points ---
-    function getDistance(lat1, lon1, lat2, lon2) {
-        const R = 6371e3; // metres
-        const φ1 = lat1 * Math.PI/180;
-        const φ2 = lat2 * Math.PI/180;
-        const Δφ = (lat2-lat1) * Math.PI/180;
-        const Δλ = (lon2-lon1) * Math.PI/180;
-
-        const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-                  Math.cos(φ1) * Math.cos(φ2) *
-                  Math.sin(Δλ/2) * Math.sin(Δλ/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-
-        return R * c; // in metres
+    // --- Enhanced Location Context Function ---
+    function getEnhancedLocationContext(lat, lon) {
+        const contexts = [];
+        
+        // Check all landmark types in order of specificity
+        ['buildings', 'crosswalks', 'intersections', 'transportation', 'construction', 'zones'].forEach(category => {
+            campusLandmarks[category].forEach(landmark => {
+                const distance = getDistance(lat, lon, landmark.center[0], landmark.center[1]);
+                if (distance <= landmark.radius) {
+                    contexts.push({
+                        name: landmark.name,
+                        distance: Math.round(distance),
+                        type: landmark.type,
+                        category: category
+                    });
+                }
+            });
+        });
+        
+        // Return most specific context available
+        if (contexts.length > 0) {
+            contexts.sort((a, b) => a.distance - b.distance);
+            const primary = contexts[0];
+            let contextString = `near ${primary.name}`;
+            
+            // Add secondary context if relevant and close
+            if (contexts.length > 1 && contexts[1].distance < 50) {
+                contextString += `, close to ${contexts[1].name}`;
+            }
+            
+            // Add construction context if present
+            const constructionContext = contexts.find(c => c.type === 'construction');
+            if (constructionContext) {
+                contextString += ` (construction zone nearby)`;
+            }
+            
+            return {
+                description: contextString,
+                primary: primary,
+                secondary: contexts.length > 1 ? contexts[1] : null,
+                construction: constructionContext,
+                all: contexts
+            };
+        }
+        
+        return {
+            description: 'in an unidentified campus area',
+            primary: null,
+            secondary: null,
+            construction: null,
+            all: []
+        };
     }
 
-    // --- New: Helper function to find the closest zone within 200 meters ---
-    function getZoneName(lat, lon) {
-        let closestZone = null;
-        let closestDistance = Infinity;
-        const maxDistance = 200; // 200 meters
+    // --- Temporal Context Enhancement ---
+    function getTemporalContext(timestamp) {
+        const date = new Date(timestamp);
+        const hour = date.getHours();
+        const dayOfWeek = date.getDay();
+        const month = date.getMonth();
+        
+        let timeContext = '';
+        let trafficContext = '';
+        let pedestrianContext = '';
+        
+        // Time of day context
+        if (hour >= 7 && hour <= 9) {
+            timeContext = 'during morning rush hour';
+            trafficContext = 'heavy commuter traffic';
+            pedestrianContext = 'students heading to early classes';
+        } else if (hour >= 11 && hour <= 13) {
+            timeContext = 'during lunch hours';
+            trafficContext = 'moderate traffic with food delivery vehicles';
+            pedestrianContext = 'high pedestrian activity for lunch';
+        } else if (hour >= 16 && hour <= 18) {
+            timeContext = 'during evening rush hour';
+            trafficContext = 'heavy commuter traffic';
+            pedestrianContext = 'students leaving campus';
+        } else if (hour >= 19 && hour <= 23) {
+            timeContext = 'during evening hours';
+            trafficContext = 'light traffic';
+            pedestrianContext = 'students returning from evening activities';
+        } else if (hour >= 0 && hour <= 6) {
+            timeContext = 'during late night/early morning';
+            trafficContext = 'minimal traffic';
+            pedestrianContext = 'very few pedestrians';
+        } else {
+            timeContext = 'during off-peak hours';
+            trafficContext = 'moderate traffic';
+            pedestrianContext = 'normal pedestrian activity';
+        }
+        
+        // Day context
+        if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+            timeContext += ' on a weekday';
+        } else {
+            timeContext += ' on a weekend';
+        }
+        
+        // Academic calendar context (simplified)
+        if (month >= 8 || month <= 5) {
+            timeContext += ' during academic year';
+        } else {
+            timeContext += ' during summer break';
+        }
+        
+        return {
+            timeDescription: timeContext,
+            trafficLevel: trafficContext,
+            pedestrianActivity: pedestrianContext,
+            hour: hour,
+            dayOfWeek: dayOfWeek,
+            isWeekday: dayOfWeek >= 1 && dayOfWeek <= 5,
+            isRushHour: (hour >= 7 && hour <= 9) || (hour >= 16 && hour <= 18)
+        };
+    }
 
-        for (const zone of campusZones) {
-            const distance = getDistance(lat, lon, zone.center[0], zone.center[1]);
-            if (distance < closestDistance && distance <= maxDistance) {
-                closestDistance = distance;
-                closestZone = zone;
+    // --- Validation and Grounding System ---
+    function validateInsight(insight, eventData, locationContext) {
+        const validationRules = {
+            // Check if response mentions location correctly
+            locationMention: locationContext.primary ? locationContext.primary.name.toLowerCase() : 'campus',
+            
+            // Validate behavior classification consistency
+            behaviorConsistency: eventData.behavior.toLowerCase(),
+            
+            // Check for hallucinated landmarks
+            knownLandmarks: Object.values(campusLandmarks).flat().map(b => b.name.toLowerCase()),
+            
+            // Check for reasonable length
+            maxLength: 100,
+            minLength: 20
+        };
+        
+        const issues = [];
+        const insightLower = insight.toLowerCase();
+        
+        // Length validation
+        if (insight.length > validationRules.maxLength) {
+            issues.push('Response is too long');
+        }
+        if (insight.length < validationRules.minLength) {
+            issues.push('Response is too short');
+        }
+        
+        // Location validation
+        if (locationContext.primary && !insightLower.includes(validationRules.locationMention)) {
+            issues.push('Response does not reference the correct location');
+        }
+        
+        // Behavior consistency
+        if (!insightLower.includes(validationRules.behaviorConsistency)) {
+            issues.push('Response does not align with classified behavior');
+        }
+        
+        // Check for hallucinated landmarks
+        const mentionedLandmarks = insightLower.match(/\b[a-z\s]+(?:building|center|station|stop|crosswalk|intersection)\b/g) || [];
+        const unknownLandmarks = mentionedLandmarks.filter(landmark => 
+            !validationRules.knownLandmarks.some(known => known.includes(landmark.trim()))
+        );
+        
+        if (unknownLandmarks.length > 0) {
+            issues.push(`Mentions unknown landmarks: ${unknownLandmarks.join(', ')}`);
+        }
+        
+        // Content quality checks
+        if (insightLower.includes('i apologize') || insightLower.includes('i cannot')) {
+            issues.push('Response contains apology or refusal language');
+        }
+        
+        if (insightLower.includes('as an ai') || insightLower.includes('language model')) {
+            issues.push('Response contains AI self-reference');
+        }
+        
+        return {
+            isValid: issues.length === 0,
+            issues: issues,
+            confidence: Math.max(0, 1 - (issues.length * 0.2)),
+            score: Math.max(0, 100 - (issues.length * 20))
+        };
+    }
+
+    // --- Enhanced Neighbor Analysis ---
+    function getEnhancedNeighborAnalysis(lat, lon, radius = 100) {
+        const neighbors = allData.filter((otherFeature, i) => {
+            const [otherLon, otherLat] = otherFeature.geometry.coordinates;
+            return getDistance(lat, lon, otherLat, otherLon) <= radius;
+        });
+
+        if (neighbors.length === 0) {
+            return {
+                count: 0,
+                summary: 'No other events detected nearby.',
+                behaviorDistribution: {},
+                temporalPattern: null,
+                spatialPattern: null
+            };
+        }
+
+        // Behavior distribution
+        const behaviorCounts = neighbors.reduce((acc, curr) => {
+            const behavior = curr.properties.behavior;
+            acc[behavior] = (acc[behavior] || 0) + 1;
+            return acc;
+        }, {});
+
+        // Temporal pattern analysis
+        const timeSlots = neighbors.map(n => {
+            const hour = new Date(n.properties.timestamp).getHours();
+            return hour >= 7 && hour <= 9 ? 'morning' : 
+                   hour >= 11 && hour <= 13 ? 'lunch' :
+                   hour >= 16 && hour <= 18 ? 'evening' : 'other';
+        });
+        const temporalPattern = timeSlots.reduce((acc, slot) => {
+            acc[slot] = (acc[slot] || 0) + 1;
+            return acc;
+        }, {});
+
+        // Spatial pattern (distance distribution)
+        const distances = neighbors.map(n => {
+            const [otherLon, otherLat] = n.geometry.coordinates;
+            return getDistance(lat, lon, otherLat, otherLon);
+        });
+        const avgDistance = distances.reduce((a, b) => a + b, 0) / distances.length;
+
+        const summaryParts = Object.entries(behaviorCounts).map(([b, c]) => `${c} ${b}`);
+        const summary = `The immediate area (${radius}m radius) contains ${neighbors.length} other event(s): ${summaryParts.join(', ')}.`;
+
+        return {
+            count: neighbors.length,
+            summary: summary,
+            behaviorDistribution: behaviorCounts,
+            temporalPattern: temporalPattern,
+            spatialPattern: {
+                averageDistance: Math.round(avgDistance),
+                closestDistance: Math.round(Math.min(...distances)),
+                furthestDistance: Math.round(Math.max(...distances))
+            }
+        };
+    }
+
+    // --- Legacy function for backward compatibility ---
+    function getZoneName(lat, lon) {
+        const context = getEnhancedLocationContext(lat, lon);
+        return context.primary ? context.primary.name : 'an un-named area';
+    }
+
+    // --- Cross-Referencing with Known Campus Features ---
+    function getCampusFeatureContext(locationContext, temporalContext) {
+        const insights = [];
+        
+        // Cross-reference location type with temporal patterns
+        if (locationContext.primary) {
+            const locationType = locationContext.primary.type;
+            const isRushHour = temporalContext.isRushHour;
+            const isWeekday = temporalContext.isWeekday;
+            
+            // Academic buildings during class hours
+            if (locationType === 'academic' && isWeekday && temporalContext.hour >= 8 && temporalContext.hour <= 17) {
+                insights.push('High student pedestrian traffic between classes');
+            }
+            
+            // Dining areas during meal times
+            if (locationType === 'dining' && (temporalContext.hour >= 11 && temporalContext.hour <= 14 || temporalContext.hour >= 17 && temporalContext.hour <= 19)) {
+                insights.push('Food delivery vehicles and student meal traffic');
+            }
+            
+            // Transit stops during peak hours
+            if (locationType === 'transit' && isRushHour) {
+                insights.push('Bus and trolley traffic with passenger loading/unloading');
+            }
+            
+            // Construction zones
+            if (locationContext.construction) {
+                insights.push('Construction-related traffic and lane closures');
+            }
+            
+            // Crosswalks and pedestrian areas
+            if (locationType === 'pedestrian') {
+                insights.push('Pedestrian crossing activity');
             }
         }
+        
+        return insights.length > 0 ? insights.join('; ') : 'Normal campus traffic patterns';
+    }
 
-        if (closestZone) {
-            return closestZone.name;
+    // --- Enhanced Response Quality Assurance ---
+    function enhanceResponseQuality(insight, eventData, locationContext, temporalContext) {
+        let enhancedInsight = insight;
+        
+        // Add missing location context if not present
+        if (locationContext.primary && !insight.toLowerCase().includes(locationContext.primary.name.toLowerCase())) {
+            enhancedInsight = `Near ${locationContext.primary.name}: ${enhancedInsight}`;
         }
-        return 'an un-named area';
+        
+        // Add temporal context if missing
+        if (!insight.toLowerCase().includes('morning') && !insight.toLowerCase().includes('evening') && 
+            !insight.toLowerCase().includes('lunch') && !insight.toLowerCase().includes('rush')) {
+            if (temporalContext.isRushHour) {
+                enhancedInsight = enhancedInsight.replace(/\.$/, '') + ` during ${temporalContext.timeDescription.split(' ')[1]} rush hour.`;
+            }
+        }
+        
+        // Add campus-specific context
+        const campusContext = getCampusFeatureContext(locationContext, temporalContext);
+        if (!enhancedInsight.toLowerCase().includes('student') && !enhancedInsight.toLowerCase().includes('pedestrian')) {
+            if (campusContext.includes('student') || campusContext.includes('pedestrian')) {
+                enhancedInsight = enhancedInsight.replace(/\.$/, '') + ` This is typical for ${campusContext.toLowerCase()}.`;
+            }
+        }
+        
+        return enhancedInsight;
+    }
+
+    // --- Retry Logic for Low-Quality Responses ---
+    async function retryInsightGeneration(prompt, maxRetries = 2) {
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                const response = await fetch('/api/generate-insight', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        prompt: prompt + `\n\nAttempt ${attempt}: Please ensure your response is specific to the location and time mentioned.`
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to get AI insight from server.');
+                }
+
+                const data = await response.json();
+                return data.choices[0].message.content;
+                
+            } catch (error) {
+                console.error(`Attempt ${attempt} failed:`, error);
+                if (attempt === maxRetries) {
+                    throw error;
+                }
+                // Wait before retry
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+        }
     }
 
     // Add these functions for summary generation
@@ -464,47 +812,42 @@
 
         // --- Enhanced Context Generation ---
         const [lon, lat] = feature.geometry.coordinates;
-        const zoneName = getZoneName(lat, lon);
+        const locationContext = getEnhancedLocationContext(lat, lon);
+        const temporalContext = getTemporalContext(props.timestamp);
+        const neighborAnalysis = getEnhancedNeighborAnalysis(lat, lon, 100);
 
-        // Find neighbors
-        const radius = 50; // 50 meters
-        const neighbors = allData.filter((otherFeature, i) => {
-            if (i === index) return false;
-            const [otherLon, otherLat] = otherFeature.geometry.coordinates;
-            return getDistance(lat, lon, otherLat, otherLon) <= radius;
-        });
-
-        let neighborSummary = 'No other events detected nearby.';
-        if (neighbors.length > 0) {
-            const behaviorCounts = neighbors.reduce((acc, curr) => {
-                const behavior = curr.properties.behavior;
-                acc[behavior] = (acc[behavior] || 0) + 1;
-                return acc;
-            }, {});
-            const summaryParts = Object.entries(behaviorCounts).map(([b, c]) => `${c} ${b}`);
-            neighborSummary = `The immediate area (${radius}m radius) contains ${neighbors.length} other event(s): ${summaryParts.join(', ')}.`;
-        }
-        
-        // --- New, Context-Rich Prompt ---
+        // --- Enhanced, Context-Rich Prompt with Validation ---
         const prompt = `
             You are a transportation safety analyst providing a concise, 50-word summary for a specific driving event on the Georgia Tech campus. Your summary must be a single block of plaintext with no special formatting.
 
-            First, qualitatively describe the event based on the data (e.g., "a sharp right turn with high vertical shock").
-            Second, using the provided context, hypothesize the most likely cause for this behavior.
+            Campus Context: Georgia Tech is an active urban campus with heavy pedestrian traffic, construction zones, and multiple transportation modes (buses, cars, bikes, scooters).
 
-            Context:
-            - Named Location: The event occurred near '${zoneName}'.
-            - Neighborhood Activity: ${neighborSummary}
+            Event Details:
+            - Behavior Classification: '${props.behavior}'
+            - Location: ${locationContext.description}
+            - Temporal Context: ${temporalContext.timeDescription}
+            - Traffic Level: ${temporalContext.trafficLevel}
+            - Pedestrian Activity: ${temporalContext.pedestrianActivity}
+            - Technical Metrics: Instability ${props.instability_score.toFixed(2)}, 
+              Peak accelerations X: ${props.accel_stats_x_p99.toFixed(2)} m/s², Z: ${props.accel_stats_z_p99.toFixed(2)} m/s²
 
-            Data Point:
-            - Behavior: '${props.behavior}'
-            - Instability Score: ${props.instability_score.toFixed(2)}
-            - Key Accelerations (99th percentile): X-axis ${props.accel_stats_x_p99.toFixed(2)} m/s², Z-axis ${props.accel_stats_z_p99.toFixed(2)} m/s²
+            Neighborhood Context: ${neighborAnalysis.summary}
 
-            Provide the final 50-word summary below.
+            Campus Feature Context: ${getCampusFeatureContext(locationContext, temporalContext)}
+
+            Provide a 50-word explanation that:
+            1. Describes what likely happened (e.g., "sudden braking", "sharp turn")
+            2. Explains WHY it happened given the location and time
+            3. Uses familiar campus landmarks and student behavior patterns
+            4. References the specific location mentioned above
+
+            Write in plain, everyday language that anyone can understand.
         `;
 
         try {
+            let insight;
+            
+            // Try to get initial insight
             const response = await fetch('/api/generate-insight', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -516,9 +859,40 @@
             }
 
             const data = await response.json();
-            const insight = data.choices[0].message.content;
+            insight = data.choices[0].message.content;
 
-            insightContainer.innerHTML = insight;
+            // --- Validation and Quality Assurance ---
+            const validation = validateInsight(insight, props, locationContext);
+            
+            // If validation fails and score is low, try retry logic
+            if (!validation.isValid && validation.score < 60) {
+                console.warn('Low quality response detected, attempting retry...');
+                try {
+                    insight = await retryInsightGeneration(prompt, 1);
+                    // Re-validate after retry
+                    const retryValidation = validateInsight(insight, props, locationContext);
+                    if (retryValidation.score > validation.score) {
+                        validation.score = retryValidation.score;
+                        validation.isValid = retryValidation.isValid;
+                        validation.issues = retryValidation.issues;
+                    }
+                } catch (retryError) {
+                    console.warn('Retry failed, using original response:', retryError);
+                }
+            }
+
+            // --- Response Quality Enhancement ---
+            insight = enhanceResponseQuality(insight, props, locationContext, temporalContext);
+
+            // Display insight with validation feedback if needed
+            let displayContent = insight;
+            if (!validation.isValid && validation.score < 60) {
+                displayContent = `<div style="color: #d7191c; font-size: 11px; margin-bottom: 5px;">⚠️ Low confidence response</div>${insight}`;
+            } else if (validation.score >= 80) {
+                displayContent = `<div style="color: #28a745; font-size: 11px; margin-bottom: 5px;">✓ High confidence response</div>${insight}`;
+            }
+
+            insightContainer.innerHTML = displayContent;
             insightButton.style.display = 'none'; // Hide button after success
 
         } catch (error) {
@@ -535,13 +909,22 @@
         summaryText.innerHTML = 'Generating summary...';
 
         try {
-            // --- New: Client-side aggregation to find hotspots ---
+            // --- Enhanced: Client-side aggregation with temporal and spatial analysis ---
             const clusters = allData.reduce((acc, feature) => {
                 const clusterId = feature.properties.cluster;
                 if (!acc[clusterId]) {
-                    acc[clusterId] = { points: [], behaviors: {}, instability: 0 };
+                    acc[clusterId] = { 
+                        points: [], 
+                        behaviors: {}, 
+                        instability: 0,
+                        timestamps: [],
+                        locations: []
+                    };
                 }
                 acc[clusterId].points.push(feature);
+                acc[clusterId].timestamps.push(feature.properties.timestamp);
+                acc[clusterId].locations.push(feature.geometry.coordinates);
+                
                 const behavior = feature.properties.behavior;
                 acc[clusterId].behaviors[behavior] = (acc[clusterId].behaviors[behavior] || 0) + 1;
                 acc[clusterId].instability += feature.properties.instability_score;
@@ -553,9 +936,25 @@
                 const avgInstability = data.instability / totalPoints;
                 const dominantBehavior = Object.keys(data.behaviors).reduce((a, b) => data.behaviors[a] > data.behaviors[b] ? a : b);
                 const aggressiveCount = (data.behaviors['Aggressive'] || 0) + (data.behaviors['Very Aggressive'] || 0);
-                // Severity score: combination of aggressive acts and instability.
+                
+                // Enhanced severity score: combination of aggressive acts, instability, and temporal clustering
                 const severity = aggressiveCount * avgInstability; 
                 const [lon, lat] = data.points[0].geometry.coordinates;
+                
+                // Temporal analysis
+                const timeSlots = data.timestamps.map(ts => {
+                    const hour = new Date(ts).getHours();
+                    return hour >= 7 && hour <= 9 ? 'morning' : 
+                           hour >= 11 && hour <= 13 ? 'lunch' :
+                           hour >= 16 && hour <= 18 ? 'evening' : 'other';
+                });
+                const temporalPattern = timeSlots.reduce((acc, slot) => {
+                    acc[slot] = (acc[slot] || 0) + 1;
+                    return acc;
+                }, {});
+                
+                // Enhanced location context
+                const locationContext = getEnhancedLocationContext(lat, lon);
 
                 return {
                     id,
@@ -564,7 +963,9 @@
                     dominantBehavior,
                     aggressiveCount,
                     severity,
-                    locationName: getZoneName(lat, lon)
+                    temporalPattern,
+                    locationContext,
+                    locationName: locationContext.primary ? locationContext.primary.name : 'an unidentified area'
                 };
             });
             
@@ -572,25 +973,47 @@
             clusterAnalysis.sort((a, b) => b.severity - a.severity);
             const topHotspots = clusterAnalysis.slice(0, 3);
             
-            // --- New, Data-Driven Prompt ---
-            const hotspotPrompts = topHotspots.map((h, i) => `
-                Hotspot ${i+1} (in/near ${h.locationName}):
+            // --- Enhanced, Context-Rich Prompt ---
+            const hotspotPrompts = topHotspots.map((h, i) => {
+                const temporalInfo = Object.entries(h.temporalPattern)
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([time, count]) => `${count} ${time}`)
+                    .join(', ');
+                
+                const locationDetails = h.locationContext.construction ? 
+                    `${h.locationName} (construction zone nearby)` : h.locationName;
+                
+                return `
+                Hotspot ${i+1} (${locationDetails}):
                 - Number of Events: ${h.totalPoints}
                 - Dominant Behavior: ${h.dominantBehavior}
                 - Aggressive/Very Aggressive Events: ${h.aggressiveCount} (${Math.round(h.aggressiveCount/h.totalPoints*100)}%)
                 - Average Instability Score: ${h.avgInstability.toFixed(4)}
-            `).join('');
+                - Temporal Pattern: Most events occur ${temporalInfo}
+                - Location Type: ${h.locationContext.primary ? h.locationContext.primary.type : 'unknown'}
+            `;
+            }).join('');
 
-            const prompt = `You are a transportation analyst writing for a general audience. Write a simple, clear 200-word summary of driving conditions on Georgia Tech's campus based on the data below.
+            const prompt = `You are explaining Georgia Tech campus driving patterns to campus safety officials. 
+Write a 200-word executive summary that prioritizes actionable insights.
+
+Campus Context:
+- Georgia Tech has 15,000+ students, faculty, and staff
+- Heavy pedestrian traffic between classes (especially 10-11am, 2-3pm)
+- Multiple construction projects ongoing
+- Mix of delivery vehicles, personal cars, buses, and micro-mobility
+- Active urban campus with narrow roads and frequent crosswalks
+
+For each hotspot, explain:
+1. WHERE: Specific location relative to major campus landmarks
+2. WHAT: The types of driving behaviors observed
+3. WHY: Likely causes based on campus features (pedestrian crossings, narrow roads, parking conflicts, construction, etc.)
+4. WHEN: If temporal patterns are apparent
+5. RECOMMENDATION: Specific safety or infrastructure suggestions
 
 Write in plain, everyday language that anyone can understand. Avoid technical terms like "instability scores" or "events." Instead, use simple descriptions like "smooth driving," "rough driving," or "sudden stops."
 
-For each area mentioned:
-1. Describe where it is in simple terms (e.g., "near the library," "at the main entrance")
-2. Explain what the driving is like there (e.g., "drivers make sudden stops," "traffic flows smoothly")
-3. Suggest why this might be happening (e.g., "likely due to students crossing the street," "probably because of the traffic light")
-
-Make it sound like you're explaining this to someone who has never seen the data before. Be conversational and clear.
+Focus on practical insights that campus transportation can act upon.
 
 Data-Driven Hotspots:
 ${hotspotPrompts}
