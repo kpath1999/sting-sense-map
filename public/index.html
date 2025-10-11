@@ -90,6 +90,7 @@
             background-color: rgba(44, 123, 182, 0.95);
             border-radius: 8px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+            flex-wrap: wrap;
         }
         .query-container input {
             width: 280px;
@@ -113,6 +114,29 @@
         }
         .query-container button:hover {
             background-color: #164a6c;
+        }
+        .mode-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background-color: rgba(255, 255, 255, 0.15);
+            padding: 4px 8px;
+            border-radius: 20px;
+            font-size: 12px;
+            color: #fff;
+        }
+        .mode-toggle span {
+            font-weight: 600;
+            margin-right: 4px;
+        }
+        .mode-toggle label {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+        }
+        .mode-toggle input[type="radio"] {
+            accent-color: #1a5f8c;
         }
         .summary-modal {
             display: none;
@@ -217,6 +241,17 @@
 
 <div id="map"></div>
 <div class="query-container">
+    <div class="mode-toggle" role="radiogroup" aria-label="Context mode selector">
+        <span>Context:</span>
+        <label>
+            <input type="radio" name="context-mode" value="cluster" checked>
+            Cluster
+        </label>
+        <label>
+            <input type="radio" name="context-mode" value="raw">
+            Raw
+        </label>
+    </div>
     <input type="text" id="user-query" placeholder="Ask about driver patterns, dwell times, etc." aria-label="Enter analysis question" />
     <button id="submit-query">Ask</button>
 </div>
@@ -236,6 +271,7 @@
 
     const promptTemplates = {
         aggressivePatterns: `You are a transportation safety analyst. Given the following summary of aggressive driving evidence, explain the underlying patterns in plain language, cite the campus locations, and recommend one follow-up analysis. Keep it under 180 words.\n\nDATA SUMMARY:\n{{data}}\n\nUSER QUESTION: {{userQuery}}`,
+        raw: `You are a transportation analyst. You will receive the entire bus telemetry dataset as raw JSON without any preprocessing. Use it to answer the user's question directly, pointing to concrete observations. Keep your reply under 200 words.\n\nRAW DATASET (JSON):\n{{data}}\n\nUSER QUESTION: {{userQuery}}`,
         dwellTime: `You are an operations planner studying bus dwell times. Interpret the campus dwell indicators below, connect them to possible rider or traffic causes, and outline one actionable optimization. Reference the places mentioned. Limit to 180 words.\n\nDATA SUMMARY:\n{{data}}\n\nUSER QUESTION: {{userQuery}}`,
         routeEfficiency: `You are a route efficiency specialist. Review the distance and timing insights below, assess how efficiently the bus moved through campus, and highlight any detours or slow legs in under 180 words.\n\nDATA SUMMARY:\n{{data}}\n\nUSER QUESTION: {{userQuery}}`,
         generalInfo: `You are writing a narrative briefing for campus transportation leadership. Summarize the key takeaways from the data below and directly address the user question in 180 words or less.\n\nDATA SUMMARY:\n{{data}}\n\nUSER QUESTION: {{userQuery}}`
@@ -257,6 +293,11 @@
 
         scores.sort((a, b) => b.score - a.score);
         return scores[0].score > 0 ? scores[0] : { category: 'generalInfo', score: 0 };
+    }
+
+    function getSelectedContextMode() {
+        const selected = document.querySelector('input[name="context-mode"]:checked');
+        return selected ? selected.value : 'cluster';
     }
 
     function escapeHtml(text) {
@@ -473,7 +514,17 @@
         return message.trim();
     }
 
-    async function processUserQuery(query) {
+    async function processUserQuery(query, mode = 'cluster') {
+        if (mode === 'raw') {
+            if (!allData.length) {
+                throw new Error('No route data has been loaded yet. Zoom or reload the map to fetch telemetry.');
+            }
+            const dataSummary = JSON.stringify(allData, null, 2);
+            const prompt = buildPrompt('raw', query, dataSummary);
+            const response = await callLLMAPI(prompt);
+            return { response, category: 'raw', dataSummary };
+        }
+
         const { category } = analyzeUserQuery(query);
         const summary = await fetchRelevantData(category);
         const dataSummary = formatSummaryForPrompt(category, summary);
@@ -482,24 +533,27 @@
         return { response, category, dataSummary };
     }
 
-    function renderLoadingState(query) {
+    function renderLoadingState(query, mode) {
         showSummaryModal();
-        document.getElementById('summaryHeader').textContent = `Analyzing: "${query}"`;
-        document.getElementById('summaryText').innerHTML = `<p class="loading-message">Processing your question with live route data...</p>`;
+        const modeLabel = mode === 'raw' ? 'Raw' : 'Cluster';
+        document.getElementById('summaryHeader').textContent = `Analyzing (${modeLabel} mode): "${query}"`;
+        document.getElementById('summaryText').innerHTML = `<p class="loading-message">Processing your question with ${mode === 'raw' ? 'the full raw dataset' : 'clustered insights'}...</p>`;
         document.getElementById('feedbackContainer').innerHTML = '';
     }
 
-    function displayResults(query, result) {
+    function displayResults(query, mode, result) {
         const summaryHeader = document.getElementById('summaryHeader');
         const summaryText = document.getElementById('summaryText');
         const feedbackContainer = document.getElementById('feedbackContainer');
 
-        summaryHeader.textContent = `Result for: "${query}"`;
+        const modeLabel = mode === 'raw' ? 'Raw' : 'Cluster';
+        summaryHeader.textContent = `Result (${modeLabel} mode) for: "${query}"`;
+        const dataSummaryLabel = mode === 'raw' ? 'Raw dataset provided to the model' : 'Data summary provided to the model';
         summaryText.innerHTML = `
             <div class="results">
                 <div class="response-content">${escapeHtml(result.response)}</div>
                 <details>
-                    <summary>Data summary provided to the model</summary>
+                    <summary>${escapeHtml(dataSummaryLabel)}</summary>
                     <pre style="white-space: pre-wrap; font-size: 12px; background: #f7f7f7; padding: 10px; border-radius: 6px;">${escapeHtml(result.dataSummary)}</pre>
                 </details>
             </div>
@@ -516,24 +570,25 @@
         feedbackContainer.querySelectorAll('.feedback-btn').forEach(button => {
             button.addEventListener('click', (event) => {
                 const value = event.target.getAttribute('data-value');
-                logFeedback(query, result.response, value);
+                logFeedback(query, result.response, value, mode);
                 feedbackContainer.innerHTML = '<div class="feedback">Thanks for the feedback!</div>';
             });
         });
     }
 
-    function handleQueryError(query, error) {
+    function handleQueryError(query, mode, error) {
         const summaryHeader = document.getElementById('summaryHeader');
         const summaryText = document.getElementById('summaryText');
         const feedbackContainer = document.getElementById('feedbackContainer');
 
-        summaryHeader.textContent = `Issue while analyzing: "${query}"`;
+        const modeLabel = mode === 'raw' ? 'Raw' : 'Cluster';
+        summaryHeader.textContent = `Issue while analyzing (${modeLabel} mode): "${query}"`;
         summaryText.innerHTML = `<div class="error-message">${escapeHtml(error.message || 'Something went wrong.')}</div>`;
         feedbackContainer.innerHTML = '';
     }
 
-    function logFeedback(query, response, feedback) {
-        console.info('User feedback captured', { query, feedback, responseSnippet: response.slice(0, 120) });
+    function logFeedback(query, response, feedback, mode) {
+        console.info('User feedback captured', { query, mode, feedback, responseSnippet: response.slice(0, 120) });
     }
 
     function attachQueryHandlers() {
@@ -550,13 +605,14 @@
                 input.focus();
                 return;
             }
-            renderLoadingState(query);
+            const mode = getSelectedContextMode();
+            renderLoadingState(query, mode);
             try {
-                const result = await processUserQuery(query);
-                displayResults(query, result);
+                const result = await processUserQuery(query, mode);
+                displayResults(query, mode, result);
             } catch (error) {
                 console.error('Error processing query:', error);
-                handleQueryError(query, error);
+                handleQueryError(query, mode, error);
             }
         });
 
