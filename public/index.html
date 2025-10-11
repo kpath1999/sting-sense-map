@@ -85,58 +85,99 @@
             z-index: 1100;
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 10px 16px;
-            background-color: rgba(44, 123, 182, 0.95);
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.25);
-            flex-wrap: wrap;
+            gap: 12px;
+            padding: 10px 14px;
+            background-color: rgba(25, 57, 90, 0.92);
+            border-radius: 12px;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+            max-width: 760px;
+            width: calc(100% - 40px);
         }
         .query-container input {
-            width: 280px;
-            padding: 8px 10px;
+            flex: 1 1 260px;
+            min-width: 200px;
+            padding: 9px 12px;
             border: none;
-            border-radius: 6px;
+            border-radius: 8px;
             font-size: 14px;
             font-family: inherit;
             outline: none;
+            background: rgba(255,255,255,0.95);
+            color: #1a2a3a;
         }
         .query-container button {
-            padding: 8px 16px;
-            background-color: #1a5f8c;
+            padding: 9px 18px;
+            background-color: #1f7acb;
             color: #fff;
             border: none;
-            border-radius: 6px;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 13px;
-            font-weight: bold;
-            transition: background-color 0.3s ease;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            transition: background-color 0.3s ease, transform 0.2s ease;
         }
         .query-container button:hover {
-            background-color: #164a6c;
+            background-color: #1660a0;
+            transform: translateY(-1px);
         }
         .mode-toggle {
-            display: inline-flex;
+            display: flex;
             align-items: center;
-            gap: 6px;
-            background-color: rgba(255, 255, 255, 0.15);
-            padding: 4px 8px;
-            border-radius: 20px;
+            gap: 8px;
+            color: #e6f0ff;
             font-size: 12px;
-            color: #fff;
+            white-space: nowrap;
         }
-        .mode-toggle span {
+        .mode-toggle-label {
             font-weight: 600;
-            margin-right: 4px;
+            letter-spacing: 0.2px;
         }
-        .mode-toggle label {
+        .toggle-switch {
+            position: relative;
             display: inline-flex;
             align-items: center;
-            gap: 4px;
+            gap: 0;
+            padding: 4px;
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.35);
+            background: rgba(12, 34, 54, 0.55);
             cursor: pointer;
+            min-width: 110px;
+            transition: background 0.3s ease;
         }
-        .mode-toggle input[type="radio"] {
-            accent-color: #1a5f8c;
+        .toggle-switch:focus-visible {
+            outline: 2px solid rgba(255,255,255,0.8);
+            outline-offset: 3px;
+        }
+        .toggle-switch-option {
+            flex: 1;
+            text-align: center;
+            font-weight: 600;
+            font-size: 12px;
+            position: relative;
+            z-index: 1;
+            color: rgba(255,255,255,0.7);
+            transition: color 0.3s ease;
+            padding: 4px 0;
+        }
+        .toggle-switch-indicator {
+            position: absolute;
+            top: 4px;
+            bottom: 4px;
+            width: calc(50% - 4px);
+            border-radius: 999px;
+            background: #ffffff;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            transform: translateX(0);
+            transition: transform 0.3s ease;
+        }
+        .toggle-switch[data-mode="raw"] .toggle-switch-indicator {
+            transform: translateX(100%);
+        }
+        .toggle-switch[data-mode="cluster"] .toggle-switch-option[data-role="cluster"],
+        .toggle-switch[data-mode="raw"] .toggle-switch-option[data-role="raw"] {
+            color: #0d2c4a;
         }
         .summary-modal {
             display: none;
@@ -235,22 +276,38 @@
         .close-button:hover {
             color: #333;
         }
+        @media (max-width: 640px) {
+            .query-container {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+            }
+            .mode-toggle {
+                justify-content: space-between;
+                width: 100%;
+            }
+            .toggle-switch {
+                width: 100%;
+            }
+            .query-container input,
+            .query-container button {
+                width: 100%;
+            }
+        }
     </style>
 </head>
 <body>
 
 <div id="map"></div>
 <div class="query-container">
-    <div class="mode-toggle" role="radiogroup" aria-label="Context mode selector">
-        <span>Context:</span>
-        <label>
-            <input type="radio" name="context-mode" value="cluster" checked>
-            Cluster
-        </label>
-        <label>
-            <input type="radio" name="context-mode" value="raw">
-            Raw
-        </label>
+    <div class="mode-toggle">
+        <span class="mode-toggle-label">Context</span>
+        <button type="button" id="context-toggle" class="toggle-switch" data-mode="cluster" aria-pressed="false" aria-label="Context mode: Cluster">
+            <span class="toggle-switch-indicator"></span>
+            <span class="toggle-switch-option" data-role="cluster">Cluster</span>
+            <span class="toggle-switch-option" data-role="raw">Raw</span>
+        </button>
+        <input type="hidden" id="context-mode" value="cluster" />
     </div>
     <input type="text" id="user-query" placeholder="Ask about driver patterns, dwell times, etc." aria-label="Enter analysis question" />
     <button id="submit-query">Ask</button>
@@ -272,10 +329,15 @@
     const promptTemplates = {
         aggressivePatterns: `You are a transportation safety analyst. Given the following summary of aggressive driving evidence, explain the underlying patterns in plain language, cite the campus locations, and recommend one follow-up analysis. Keep it under 180 words.\n\nDATA SUMMARY:\n{{data}}\n\nUSER QUESTION: {{userQuery}}`,
         raw: `You are a transportation analyst. You will receive the entire bus telemetry dataset as raw JSON without any preprocessing. Use it to answer the user's question directly, pointing to concrete observations. Keep your reply under 200 words.\n\nRAW DATASET (JSON):\n{{data}}\n\nUSER QUESTION: {{userQuery}}`,
+        rawChunk: `You are a transportation analyst reviewing bus telemetry part {{chunkIndex}} of {{totalChunks}}. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user question. Keep your response under 120 words, note any potential safety concerns, and focus only on this chunk.\n\nRAW DATA CHUNK:\n{{data}}\n\nUSER QUESTION: {{userQuery}}`,
+        rawFinal: `You previously reviewed {{chunkCount}} raw telemetry chunks. Combine the analyst notes below into one cohesive answer for the user. Reference the question directly, call out specific patterns or anomalies, and keep the response under 220 words. {{truncatedNote}}\n\nANALYST NOTES:\n{{data}}\n\nUSER QUESTION: {{userQuery}}`,
         dwellTime: `You are an operations planner studying bus dwell times. Interpret the campus dwell indicators below, connect them to possible rider or traffic causes, and outline one actionable optimization. Reference the places mentioned. Limit to 180 words.\n\nDATA SUMMARY:\n{{data}}\n\nUSER QUESTION: {{userQuery}}`,
         routeEfficiency: `You are a route efficiency specialist. Review the distance and timing insights below, assess how efficiently the bus moved through campus, and highlight any detours or slow legs in under 180 words.\n\nDATA SUMMARY:\n{{data}}\n\nUSER QUESTION: {{userQuery}}`,
         generalInfo: `You are writing a narrative briefing for campus transportation leadership. Summarize the key takeaways from the data below and directly address the user question in 180 words or less.\n\nDATA SUMMARY:\n{{data}}\n\nUSER QUESTION: {{userQuery}}`
     };
+
+    const RAW_SINGLE_REQUEST_CHAR_LIMIT = 11000;
+    const RAW_MAX_CHUNKS = 5;
 
     function analyzeUserQuery(query) {
         const normalized = query.toLowerCase();
@@ -296,8 +358,8 @@
     }
 
     function getSelectedContextMode() {
-        const selected = document.querySelector('input[name="context-mode"]:checked');
-        return selected ? selected.value : 'cluster';
+        const modeField = document.getElementById('context-mode');
+        return modeField ? modeField.value : 'cluster';
     }
 
     function escapeHtml(text) {
@@ -307,6 +369,64 @@
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
+    }
+
+    function splitFeaturesForRaw(features, charLimit = RAW_SINGLE_REQUEST_CHAR_LIMIT, maxChunks = RAW_MAX_CHUNKS) {
+        const result = [];
+        let current = [];
+        let currentLength = 2; // account for [] brackets
+        let startIndex = 0;
+        let index = 0;
+        let truncated = false;
+
+        while (index < features.length) {
+            const feature = features[index];
+            const serialized = JSON.stringify(feature);
+            const addedLength = serialized.length + (current.length ? 1 : 0);
+
+            if (addedLength > charLimit && current.length === 0) {
+                current.push(feature);
+                result.push({ features: current, startIndex: index, endIndex: index, charLength: serialized.length + 2 });
+                index += 1;
+                current = [];
+                currentLength = 2;
+                if (result.length >= maxChunks) {
+                    truncated = index < features.length;
+                    break;
+                }
+                continue;
+            }
+
+            if (currentLength + addedLength > charLimit && current.length > 0) {
+                result.push({ features: current, startIndex, endIndex: index - 1, charLength: currentLength });
+                if (result.length >= maxChunks) {
+                    truncated = index < features.length;
+                    current = [];
+                    break;
+                }
+                current = [];
+                currentLength = 2;
+                startIndex = index;
+                continue;
+            }
+
+            if (current.length === 0) {
+                startIndex = index;
+            }
+
+            current.push(feature);
+            currentLength += addedLength;
+            index += 1;
+        }
+
+        if (current.length && result.length < maxChunks) {
+            result.push({ features: current, startIndex, endIndex: index - 1, charLength: currentLength });
+        } else if (current.length) {
+            truncated = true;
+        }
+
+        const processedCount = result.length ? result[result.length - 1].endIndex + 1 : 0;
+        return { chunks: result, truncated, processedCount };
     }
 
     function getTimeRangeSummary() {
@@ -490,9 +610,13 @@
         return lines.join('\n');
     }
 
-    function buildPrompt(category, query, dataSummary) {
+    function buildPrompt(category, query, dataSummary, extraReplacements = {}) {
         const template = promptTemplates[category] || promptTemplates.generalInfo;
-        return template.replace('{{data}}', dataSummary).replace('{{userQuery}}', query);
+        const replacements = { data: dataSummary, userQuery: query, ...extraReplacements };
+        return template.replace(/{{(.*?)}}/g, (_, key) => {
+            const token = key.trim();
+            return Object.prototype.hasOwnProperty.call(replacements, token) ? replacements[token] : '';
+        });
     }
 
     async function callLLMAPI(prompt) {
@@ -514,15 +638,66 @@
         return message.trim();
     }
 
+    async function processRawMode(query) {
+        if (!allData.length) {
+            throw new Error('No route data has been loaded yet. Zoom or reload the map to fetch telemetry.');
+        }
+
+        const jsonDataset = JSON.stringify(allData, null, 2);
+        if (jsonDataset.length <= RAW_SINGLE_REQUEST_CHAR_LIMIT) {
+            const prompt = buildPrompt('raw', query, jsonDataset);
+            const response = await callLLMAPI(prompt);
+            return {
+                response,
+                category: 'raw-single',
+                dataSummary: `Full dataset (${allData.length} records, ${jsonDataset.length} chars) sent to model.\n\n${jsonDataset}`
+            };
+        }
+
+        const { chunks, truncated, processedCount } = splitFeaturesForRaw(allData);
+        if (!chunks.length) {
+            throw new Error('Unable to prepare the dataset for raw analysis. Try switching to cluster mode.');
+        }
+
+        const chunkNotes = [];
+        const chunkDescriptors = [];
+
+        for (let i = 0; i < chunks.length; i++) {
+            const chunk = chunks[i];
+            const chunkJson = JSON.stringify(chunk.features, null, 2);
+            chunkDescriptors.push(`Chunk ${i + 1}: records ${chunk.startIndex + 1}-${chunk.endIndex + 1} (${chunkJson.length} chars)`);
+
+            const chunkResponse = await callLLMAPI(
+                buildPrompt('rawChunk', query, chunkJson, {
+                    chunkIndex: i + 1,
+                    totalChunks: chunks.length
+                })
+            );
+            chunkNotes.push(`Chunk ${i + 1} findings:\n${chunkResponse}`);
+        }
+
+        const truncatedNote = truncated
+            ? `Only the first ${processedCount} of ${allData.length} records could be processed due to token limits.`
+            : `All ${processedCount} records were processed across ${chunks.length} chunk(s).`;
+
+        const finalPrompt = buildPrompt('rawFinal', query, chunkNotes.join('\n\n'), {
+            chunkCount: chunks.length,
+            truncatedNote
+        });
+        const finalResponse = await callLLMAPI(finalPrompt);
+
+    const partialNotes = chunkNotes.join('\n\n');
+    const dataSummary = `${chunkDescriptors.join('\n')}
+${truncated ? `⚠️ ${truncatedNote}` : truncatedNote}
+
+Partial chunk notes forwarded to the final prompt:
+${partialNotes}`;
+    return { response: finalResponse, category: truncated ? 'raw-chunked-partial' : 'raw-chunked', dataSummary };
+    }
+
     async function processUserQuery(query, mode = 'cluster') {
         if (mode === 'raw') {
-            if (!allData.length) {
-                throw new Error('No route data has been loaded yet. Zoom or reload the map to fetch telemetry.');
-            }
-            const dataSummary = JSON.stringify(allData, null, 2);
-            const prompt = buildPrompt('raw', query, dataSummary);
-            const response = await callLLMAPI(prompt);
-            return { response, category: 'raw', dataSummary };
+            return processRawMode(query);
         }
 
         const { category } = analyzeUserQuery(query);
@@ -537,7 +712,8 @@
         showSummaryModal();
         const modeLabel = mode === 'raw' ? 'Raw' : 'Cluster';
         document.getElementById('summaryHeader').textContent = `Analyzing (${modeLabel} mode): "${query}"`;
-        document.getElementById('summaryText').innerHTML = `<p class="loading-message">Processing your question with ${mode === 'raw' ? 'the full raw dataset' : 'clustered insights'}...</p>`;
+    const modeMessage = mode === 'raw' ? 'the full raw dataset (chunking if necessary)…' : 'clustered insights';
+    document.getElementById('summaryText').innerHTML = `<p class="loading-message">Processing your question with ${modeMessage}</p>`;
         document.getElementById('feedbackContainer').innerHTML = '';
     }
 
@@ -548,7 +724,7 @@
 
         const modeLabel = mode === 'raw' ? 'Raw' : 'Cluster';
         summaryHeader.textContent = `Result (${modeLabel} mode) for: "${query}"`;
-        const dataSummaryLabel = mode === 'raw' ? 'Raw dataset provided to the model' : 'Data summary provided to the model';
+        const dataSummaryLabel = mode === 'raw' ? 'Raw dataset delivery summary' : 'Data summary provided to the model';
         summaryText.innerHTML = `
             <div class="results">
                 <div class="response-content">${escapeHtml(result.response)}</div>
@@ -594,9 +770,29 @@
     function attachQueryHandlers() {
         const input = document.getElementById('user-query');
         const button = document.getElementById('submit-query');
+        const toggleButton = document.getElementById('context-toggle');
+        const modeField = document.getElementById('context-mode');
 
         if (!input || !button) {
             return;
+        }
+
+        const applyModeToToggle = (mode) => {
+            if (!toggleButton || !modeField) {
+                return;
+            }
+            modeField.value = mode;
+            toggleButton.dataset.mode = mode;
+            toggleButton.setAttribute('aria-pressed', mode === 'raw');
+            toggleButton.setAttribute('aria-label', `Context mode: ${mode === 'raw' ? 'Raw' : 'Cluster'}`);
+        };
+
+        if (toggleButton && modeField) {
+            applyModeToToggle(modeField.value || 'cluster');
+            toggleButton.addEventListener('click', () => {
+                const nextMode = modeField.value === 'cluster' ? 'raw' : 'cluster';
+                applyModeToToggle(nextMode);
+            });
         }
 
         button.addEventListener('click', async () => {
@@ -1308,11 +1504,9 @@
 
             Write in plain, everyday language that anyone can understand.
         `;
-
         try {
             let insight;
-            
-            // Try to get initial insight
+
             const response = await fetch('/api/generate-insight', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
