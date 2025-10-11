@@ -76,26 +76,43 @@
             font-weight: bold;
             text-shadow: 1px 1px 1px rgba(0,0,0,0.3);
         }
-        /* New styles for summary button and modal */
-        .summary-button {
+        /* Query interface styles */
+        .query-container {
             position: absolute;
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 1100;
-            padding: 10px 20px;
-            background-color: #2c7bb6;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: bold;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            transition: background-color 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 16px;
+            background-color: rgba(44, 123, 182, 0.95);
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.25);
         }
-        .summary-button:hover {
+        .query-container input {
+            width: 280px;
+            padding: 8px 10px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+            outline: none;
+        }
+        .query-container button {
+            padding: 8px 16px;
             background-color: #1a5f8c;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: bold;
+            transition: background-color 0.3s ease;
+        }
+        .query-container button:hover {
+            background-color: #164a6c;
         }
         .summary-modal {
             display: none;
@@ -133,6 +150,44 @@
             color: #555;
             margin-bottom: 10px;
         }
+        .loading-message {
+            color: #1a5f8c;
+            font-weight: 600;
+        }
+        .error-message {
+            color: #d7191c;
+            background-color: #fbeaea;
+            padding: 10px;
+            border-radius: 6px;
+        }
+        .results {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .response-content {
+            white-space: pre-wrap;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .feedback {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            font-size: 13px;
+            color: #555;
+        }
+        .feedback-btn {
+            padding: 6px 12px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            background-color: #fff;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .feedback-btn:hover {
+            background-color: #f0f0f0;
+        }
         .modal-overlay {
             display: none;
             position: fixed;
@@ -161,19 +216,357 @@
 <body>
 
 <div id="map"></div>
-<button class="summary-button" onclick="generateSummary()">Generate Summary</button>
+<div class="query-container">
+    <input type="text" id="user-query" placeholder="Ask about driver patterns, dwell times, etc." aria-label="Enter analysis question" />
+    <button id="submit-query">Ask</button>
+</div>
 <div class="modal-overlay" id="modalOverlay"></div>
 <div class="summary-modal" id="summaryModal">
     <button class="close-button" onclick="closeSummary()">&times;</button>
     <div class="summary-content" id="summaryContent">
-        <div class="summary-header">Route Analysis Summary</div>
-        <div id="summaryText">Generating summary...</div>
+        <div class="summary-header" id="summaryHeader">Route Analysis Summary</div>
+        <div id="summaryText">Enter a query to begin your analysis.</div>
+        <div id="feedbackContainer"></div>
     </div>
 </div>
 
 <script>
     var map = L.map('map').setView([33.776, -84.389], 15);
     var allData = []; // Store all data points for analysis
+
+    const promptTemplates = {
+        aggressivePatterns: `You are a transportation safety analyst. Given the following summary of aggressive driving evidence, explain the underlying patterns in plain language, cite the campus locations, and recommend one follow-up analysis. Keep it under 180 words.\n\nDATA SUMMARY:\n{{data}}\n\nUSER QUESTION: {{userQuery}}`,
+        dwellTime: `You are an operations planner studying bus dwell times. Interpret the campus dwell indicators below, connect them to possible rider or traffic causes, and outline one actionable optimization. Reference the places mentioned. Limit to 180 words.\n\nDATA SUMMARY:\n{{data}}\n\nUSER QUESTION: {{userQuery}}`,
+        routeEfficiency: `You are a route efficiency specialist. Review the distance and timing insights below, assess how efficiently the bus moved through campus, and highlight any detours or slow legs in under 180 words.\n\nDATA SUMMARY:\n{{data}}\n\nUSER QUESTION: {{userQuery}}`,
+        generalInfo: `You are writing a narrative briefing for campus transportation leadership. Summarize the key takeaways from the data below and directly address the user question in 180 words or less.\n\nDATA SUMMARY:\n{{data}}\n\nUSER QUESTION: {{userQuery}}`
+    };
+
+    function analyzeUserQuery(query) {
+        const normalized = query.toLowerCase();
+        const queryTypes = {
+            aggressivePatterns: ['aggressive', 'dangerous', 'speeding', 'harsh', 'reckless', 'behavior', 'pattern'],
+            dwellTime: ['dwell', 'stop', 'wait', 'idle', 'stationary', 'linger', 'pause'],
+            routeEfficiency: ['route', 'path', 'efficiency', 'detour', 'time', 'distance', 'slow', 'fast'],
+            generalInfo: ['summary', 'overview', 'information', 'stats', 'insight', 'analysis']
+        };
+
+        const scores = Object.entries(queryTypes).map(([category, keywords]) => {
+            const score = keywords.reduce((total, keyword) => total + (normalized.includes(keyword) ? 1 : 0), 0);
+            return { category, score };
+        });
+
+        scores.sort((a, b) => b.score - a.score);
+        return scores[0].score > 0 ? scores[0] : { category: 'generalInfo', score: 0 };
+    }
+
+    function escapeHtml(text) {
+        return text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function getTimeRangeSummary() {
+        if (!allData.length) {
+            return null;
+        }
+        const sorted = [...allData].sort((a, b) => new Date(a.properties.timestamp) - new Date(b.properties.timestamp));
+        const start = new Date(sorted[0].properties.timestamp);
+        const end = new Date(sorted[sorted.length - 1].properties.timestamp);
+        const durationMinutes = Math.round((end - start) / 60000);
+        return {
+            startISO: start.toISOString(),
+            endISO: end.toISOString(),
+            durationMinutes
+        };
+    }
+
+    function getBehaviorDistribution() {
+        return allData.reduce((acc, feature) => {
+            const behavior = feature.properties.behavior || 'Unknown';
+            acc[behavior] = (acc[behavior] || 0) + 1;
+            return acc;
+        }, {});
+    }
+
+    function computeAggressiveHotspots() {
+        const aggressiveEvents = allData.filter(feature => ['Aggressive', 'Very Aggressive'].includes(feature.properties.behavior));
+        const clusters = aggressiveEvents.reduce((acc, feature) => {
+            const clusterId = feature.properties.cluster ?? 'unclustered';
+            if (!acc[clusterId]) {
+                acc[clusterId] = {
+                    points: [],
+                    instability: 0
+                };
+            }
+            acc[clusterId].points.push(feature);
+            acc[clusterId].instability += feature.properties.instability_score || 0;
+            return acc;
+        }, {});
+
+        return Object.entries(clusters).map(([clusterId, data]) => {
+            const representative = data.points[0];
+            const [lon, lat] = representative.geometry.coordinates;
+            const locationContext = getEnhancedLocationContext(lat, lon);
+            return {
+                clusterId,
+                events: data.points.length,
+                averageInstability: Number((data.instability / data.points.length).toFixed(3)),
+                location: locationContext.description,
+                behaviorBreakdown: data.points.reduce((acc, feature) => {
+                    const behavior = feature.properties.behavior;
+                    acc[behavior] = (acc[behavior] || 0) + 1;
+                    return acc;
+                }, {})
+            };
+        }).sort((a, b) => (b.averageInstability * b.events) - (a.averageInstability * a.events)).slice(0, 5);
+    }
+
+    function computeDwellIndicators(sortedData) {
+        const dwellIndicators = [];
+        for (let i = 1; i < sortedData.length; i++) {
+            const current = sortedData[i];
+            const previous = sortedData[i - 1];
+            const currentTime = new Date(current.properties.timestamp);
+            const previousTime = new Date(previous.properties.timestamp);
+            const gapMs = currentTime - previousTime;
+            if (gapMs >= 120000) { // 2 minutes or more
+                const [prevLon, prevLat] = previous.geometry.coordinates;
+                const context = getEnhancedLocationContext(prevLat, prevLon);
+                dwellIndicators.push({
+                    durationMinutes: Number((gapMs / 60000).toFixed(1)),
+                    resumedBehavior: current.properties.behavior,
+                    location: context.description,
+                    timestamp: previous.properties.timestamp
+                });
+            }
+        }
+        return dwellIndicators.slice(0, 5);
+    }
+
+    function computeRouteEfficiency(sortedData) {
+        if (sortedData.length < 2) {
+            return null;
+        }
+        let traveledDistance = 0;
+        for (let i = 1; i < sortedData.length; i++) {
+            const [prevLon, prevLat] = sortedData[i - 1].geometry.coordinates;
+            const [lon, lat] = sortedData[i].geometry.coordinates;
+            traveledDistance += getDistance(prevLat, prevLon, lat, lon);
+        }
+        const [startLon, startLat] = sortedData[0].geometry.coordinates;
+        const [endLon, endLat] = sortedData[sortedData.length - 1].geometry.coordinates;
+        const straightLine = getDistance(startLat, startLon, endLat, endLon);
+        const efficiencyRatio = straightLine === 0 ? 1 : straightLine / traveledDistance;
+        return {
+            traveledDistanceMetres: Math.round(traveledDistance),
+            straightLineMetres: Math.round(straightLine),
+            efficiencyRatio: Number(efficiencyRatio.toFixed(3)),
+            startLocation: getEnhancedLocationContext(startLat, startLon).description,
+            endLocation: getEnhancedLocationContext(endLat, endLon).description
+        };
+    }
+
+    async function fetchRelevantData(category) {
+        if (!allData.length) {
+            return { status: 'empty', message: 'No route data is loaded yet.' };
+        }
+
+        const sortedData = [...allData].sort((a, b) => new Date(a.properties.timestamp) - new Date(b.properties.timestamp));
+        const timeRange = getTimeRangeSummary();
+        const behaviorDistribution = getBehaviorDistribution();
+
+        const base = {
+            totalEvents: allData.length,
+            timeRange,
+            behaviorDistribution
+        };
+
+        switch (category) {
+            case 'aggressivePatterns':
+                return {
+                    base,
+                    aggressiveHotspots: computeAggressiveHotspots()
+                };
+            case 'dwellTime':
+                return {
+                    base,
+                    dwellIndicators: computeDwellIndicators(sortedData)
+                };
+            case 'routeEfficiency':
+                return {
+                    base,
+                    routeEfficiency: computeRouteEfficiency(sortedData)
+                };
+            default:
+                return { base };
+        }
+    }
+
+    function formatSummaryForPrompt(category, summary) {
+        if (summary.status === 'empty') {
+            return 'No bus route data is currently loaded on the map.';
+        }
+
+        const lines = [];
+        const { base } = summary;
+        if (base) {
+            lines.push(`Total events recorded: ${base.totalEvents}`);
+            if (base.timeRange) {
+                lines.push(`Observation window: ${base.timeRange.startISO} to ${base.timeRange.endISO} (${base.timeRange.durationMinutes} minutes).`);
+            }
+            lines.push('Behavior distribution: ' + Object.entries(base.behaviorDistribution).map(([behavior, count]) => `${behavior}=${count}`).join(', '));
+        }
+
+        if (category === 'aggressivePatterns' && summary.aggressiveHotspots?.length) {
+            lines.push('Aggressive hotspots:');
+            summary.aggressiveHotspots.forEach((hotspot, index) => {
+                lines.push(`${index + 1}. Cluster ${hotspot.clusterId} at ${hotspot.location} (${hotspot.events} events, average instability ${hotspot.averageInstability}).`);
+            });
+        }
+
+        if (category === 'dwellTime') {
+            if (summary.dwellIndicators?.length) {
+                lines.push('Potential dwell periods:');
+                summary.dwellIndicators.forEach((entry, index) => {
+                    lines.push(`${index + 1}. ${entry.durationMinutes} mins near ${entry.location} before ${entry.timestamp}, resumed as ${entry.resumedBehavior}.`);
+                });
+            } else {
+                lines.push('No extended pauses (>2 minutes) detected between recorded points.');
+            }
+        }
+
+        if (category === 'routeEfficiency' && summary.routeEfficiency) {
+            const r = summary.routeEfficiency;
+            lines.push(`Route distance travelled: ${r.traveledDistanceMetres} m.`);
+            lines.push(`Straight-line distance start to end: ${r.straightLineMetres} m.`);
+            lines.push(`Efficiency ratio (straight/travelled): ${r.efficiencyRatio}.`);
+            lines.push(`Start: ${r.startLocation}. End: ${r.endLocation}.`);
+        }
+
+        return lines.join('\n');
+    }
+
+    function buildPrompt(category, query, dataSummary) {
+        const template = promptTemplates[category] || promptTemplates.generalInfo;
+        return template.replace('{{data}}', dataSummary).replace('{{userQuery}}', query);
+    }
+
+    async function callLLMAPI(prompt) {
+        const response = await fetch('/api/generate-summary', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt })
+        });
+
+        if (!response.ok) {
+            throw new Error('Unable to retrieve analysis from the language model.');
+        }
+
+        const data = await response.json();
+        const message = data?.choices?.[0]?.message?.content;
+        if (!message) {
+            throw new Error('Received an empty response from the language model.');
+        }
+        return message.trim();
+    }
+
+    async function processUserQuery(query) {
+        const { category } = analyzeUserQuery(query);
+        const summary = await fetchRelevantData(category);
+        const dataSummary = formatSummaryForPrompt(category, summary);
+        const prompt = buildPrompt(category, query, dataSummary);
+        const response = await callLLMAPI(prompt);
+        return { response, category, dataSummary };
+    }
+
+    function renderLoadingState(query) {
+        showSummaryModal();
+        document.getElementById('summaryHeader').textContent = `Analyzing: "${query}"`;
+        document.getElementById('summaryText').innerHTML = `<p class="loading-message">Processing your question with live route data...</p>`;
+        document.getElementById('feedbackContainer').innerHTML = '';
+    }
+
+    function displayResults(query, result) {
+        const summaryHeader = document.getElementById('summaryHeader');
+        const summaryText = document.getElementById('summaryText');
+        const feedbackContainer = document.getElementById('feedbackContainer');
+
+        summaryHeader.textContent = `Result for: "${query}"`;
+        summaryText.innerHTML = `
+            <div class="results">
+                <div class="response-content">${escapeHtml(result.response)}</div>
+                <details>
+                    <summary>Data summary provided to the model</summary>
+                    <pre style="white-space: pre-wrap; font-size: 12px; background: #f7f7f7; padding: 10px; border-radius: 6px;">${escapeHtml(result.dataSummary)}</pre>
+                </details>
+            </div>
+        `;
+
+        feedbackContainer.innerHTML = `
+            <div class="feedback">
+                <span>Was this response helpful?</span>
+                <button class="feedback-btn" data-value="yes">Yes</button>
+                <button class="feedback-btn" data-value="no">No</button>
+            </div>
+        `;
+
+        feedbackContainer.querySelectorAll('.feedback-btn').forEach(button => {
+            button.addEventListener('click', (event) => {
+                const value = event.target.getAttribute('data-value');
+                logFeedback(query, result.response, value);
+                feedbackContainer.innerHTML = '<div class="feedback">Thanks for the feedback!</div>';
+            });
+        });
+    }
+
+    function handleQueryError(query, error) {
+        const summaryHeader = document.getElementById('summaryHeader');
+        const summaryText = document.getElementById('summaryText');
+        const feedbackContainer = document.getElementById('feedbackContainer');
+
+        summaryHeader.textContent = `Issue while analyzing: "${query}"`;
+        summaryText.innerHTML = `<div class="error-message">${escapeHtml(error.message || 'Something went wrong.')}</div>`;
+        feedbackContainer.innerHTML = '';
+    }
+
+    function logFeedback(query, response, feedback) {
+        console.info('User feedback captured', { query, feedback, responseSnippet: response.slice(0, 120) });
+    }
+
+    function attachQueryHandlers() {
+        const input = document.getElementById('user-query');
+        const button = document.getElementById('submit-query');
+
+        if (!input || !button) {
+            return;
+        }
+
+        button.addEventListener('click', async () => {
+            const query = input.value.trim();
+            if (!query) {
+                input.focus();
+                return;
+            }
+            renderLoadingState(query);
+            try {
+                const result = await processUserQuery(query);
+                displayResults(query, result);
+            } catch (error) {
+                console.error('Error processing query:', error);
+                handleQueryError(query, error);
+            }
+        });
+
+        input.addEventListener('keydown', async (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                button.click();
+            }
+        });
+    }
 
     var baseLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
@@ -1057,6 +1450,8 @@ Begin your narrative now:
             `;
         }
     }
+
+    attachQueryHandlers();
 </script>
 
 </body>
