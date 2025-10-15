@@ -10,7 +10,7 @@ A sophisticated transportation analytics system that transforms raw bus telemetr
 
 The system employs a **multi-layered context injection strategy** that progressively enriches raw sensor data with semantic meaning before presenting it to users. This architecture ensures that Large Language Models (LLMs) receive pre-processed, context-rich summaries rather than raw data, enabling more accurate and actionable responses.
 
-![Multi-Layered Context Injection Architecture](diagram/stingsense-v2-diag.png)
+![Multi-Layered Context Injection Architecture](diagram/stingsense-v2-diag-v3.png)
 
 ### Data Flow Pipeline
 
