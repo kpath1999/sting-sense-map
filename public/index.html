@@ -348,7 +348,7 @@
     const RAW_SINGLE_REQUEST_CHAR_LIMIT = 11000;  // Legacy - deprecated
     const RAW_MAX_CHUNKS = 5;  // Legacy - deprecated
     const TOKENS_PER_CHAR_ESTIMATE = 0.25;  // rough estimate: 4 chars ~ 1 token
-    const MAX_CONTEXT_TOKENS = 100000;  // Conservative estimate for Llama 4 Scout (actual is ~131K)
+    const MAX_CONTEXT_TOKENS = 40000;  // More conservative estimate for Llama 4 Scout (actual is ~131K)
     const MAX_INPUT_TOKENS = MAX_CONTEXT_TOKENS - 2000;  // Reserve tokens for prompt template and output
 
     function analyzeUserQuery(query) {
