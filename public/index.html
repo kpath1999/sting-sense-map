@@ -138,12 +138,12 @@
             display: inline-flex;
             align-items: center;
             gap: 0;
-            padding: 4px;
+            padding: 3px;
             border-radius: 999px;
             border: 1px solid rgba(255,255,255,0.35);
             background: rgba(12, 34, 54, 0.55);
             cursor: pointer;
-            min-width: 110px;
+            min-width: 120px;
             transition: background 0.3s ease;
         }
         .toggle-switch:focus-visible {
@@ -154,30 +154,39 @@
             flex: 1;
             text-align: center;
             font-weight: 600;
-            font-size: 12px;
+            font-size: 11px;
             position: relative;
-            z-index: 1;
+            z-index: 2;
             color: rgba(255,255,255,0.7);
             transition: color 0.3s ease;
-            padding: 4px 0;
+            padding: 5px 8px;
+            min-width: 0;
+        }
+        .toggle-switch-option[data-role="cluster"] {
+            padding-left: 6px;
+        }
+        .toggle-switch-option[data-role="raw"] {
+            padding-right: 6px;
         }
         .toggle-switch-indicator {
             position: absolute;
-            top: 4px;
-            bottom: 4px;
-            width: calc(50% - 4px);
+            top: 3px;
+            bottom: 3px;
+            left: 3px;
+            width: calc(50% - 3px);
             border-radius: 999px;
             background: #ffffff;
             box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-            transform: translateX(0);
-            transition: transform 0.3s ease;
+            transition: left 0.3s ease;
+            z-index: 1;
         }
         .toggle-switch[data-mode="raw"] .toggle-switch-indicator {
-            transform: translateX(100%);
+            left: calc(50%);
         }
         .toggle-switch[data-mode="cluster"] .toggle-switch-option[data-role="cluster"],
         .toggle-switch[data-mode="raw"] .toggle-switch-option[data-role="raw"] {
             color: #0d2c4a;
+            font-weight: 700;
         }
         .summary-modal {
             display: none;
