@@ -345,11 +345,66 @@
     generalInfo: `You are writing a narrative briefing for campus transportation leadership. Summarize the key takeaways from the data below and directly address the user question in 180 words or less. Respond in plain text with no markdown, lists, or special characters.\n\nDATA SUMMARY:\n{{data}}\n\nUSER QUESTION: {{userQuery}}`
     };
 
-    const RAW_SINGLE_REQUEST_CHAR_LIMIT = 11000;  // Legacy - deprecated
-    const RAW_MAX_CHUNKS = 5;  // Legacy - deprecated
-    const TOKENS_PER_CHAR_ESTIMATE = 0.25;  // rough estimate: 4 chars ~ 1 token
-    const MAX_CONTEXT_TOKENS = 40000;  // More conservative estimate for Llama 4 Scout (actual is ~131K)
-    const MAX_INPUT_TOKENS = MAX_CONTEXT_TOKENS - 2000;  // Reserve tokens for prompt template and output
+    const RAW_SINGLE_REQUEST_CHAR_LIMIT = 11000;
+    const RAW_MAX_CHUNKS = 5;
+
+    function splitFeaturesForRaw(features, charLimit = RAW_SINGLE_REQUEST_CHAR_LIMIT, maxChunks = RAW_MAX_CHUNKS) {
+        const result = [];
+        let current = [];
+        let currentLength = 2; // account for [] brackets
+        let startIndex = 0;
+        let index = 0;
+        let truncated = false;
+
+        while (index < features.length) {
+            const feature = features[index];
+            const serialized = JSON.stringify(feature);
+            const addedLength = serialized.length + (current.length ? 1 : 0);
+
+            if (addedLength > charLimit && current.length === 0) {
+                current.push(feature);
+                result.push({ features: current, startIndex: index, endIndex: index, charLength: serialized.length + 2 });
+                index += 1;
+                current = [];
+                currentLength = 2;
+                if (result.length >= maxChunks) {
+                    truncated = index < features.length;
+                    break;
+                }
+                continue;
+            }
+
+            if (currentLength + addedLength > charLimit && current.length > 0) {
+                result.push({ features: current, startIndex, endIndex: index - 1, charLength: currentLength });
+                if (result.length >= maxChunks) {
+                    truncated = index < features.length;
+                    current = [];
+                    break;
+                }
+                current = [];
+                currentLength = 2;
+                startIndex = index;
+                continue;
+            }
+
+            if (current.length === 0) {
+                startIndex = index;
+            }
+
+            current.push(feature);
+            currentLength += addedLength;
+            index += 1;
+        }
+
+        if (current.length && result.length < maxChunks) {
+            result.push({ features: current, startIndex, endIndex: index - 1, charLength: currentLength });
+        } else if (current.length) {
+            truncated = true;
+        }
+
+        const processedCount = result.length ? result[result.length - 1].endIndex + 1 : 0;
+        return { chunks: result, truncated, processedCount };
+    }
 
     function analyzeUserQuery(query) {
         const normalized = query.toLowerCase();
@@ -700,39 +755,29 @@
             throw new Error('No route data has been loaded yet. Zoom or reload the map to fetch telemetry.');
         }
 
-        // Use the improved splitting function
-        const { chunks, truncated, processedCount } = splitFeaturesForRawMode(allData);
-        
-        if (!chunks.length) {
-            throw new Error('Unable to prepare the dataset for analysis.');
-        }
-
-        // If we only have one chunk, don't do the chunking flow at all
-        if (chunks.length === 1) {
-            const singleChunk = chunks[0];
-            const chunkJson = JSON.stringify(singleChunk.data);
-            
-            const prompt = buildPrompt('raw', query, chunkJson);
+        const jsonDataset = JSON.stringify(allData, null, 2);
+        if (jsonDataset.length <= RAW_SINGLE_REQUEST_CHAR_LIMIT) {
+            const prompt = buildPrompt('raw', query, jsonDataset);
             const response = await callLLMAPI(prompt);
-            
             return {
                 response,
-                category: 'raw-full',
-                dataSummary: `Full optimized dataset (${allData.length} records, ~${Math.round(singleChunk.estimatedTokens)} tokens) sent to model.\n\nCompressed data format with legend included for model interpretation.`
+                category: 'raw-single',
+                dataSummary: `Full dataset (${allData.length} records, ${jsonDataset.length} chars) sent to model.\n\n${jsonDataset}`
             };
         }
 
-        // For multiple chunks, process each one
+        const { chunks, truncated, processedCount } = splitFeaturesForRaw(allData);
+        if (!chunks.length) {
+            throw new Error('Unable to prepare the dataset for raw analysis. Try switching to cluster mode.');
+        }
+
         const chunkNotes = [];
         const chunkDescriptors = [];
 
         for (let i = 0; i < chunks.length; i++) {
             const chunk = chunks[i];
-            const chunkJson = JSON.stringify(chunk.data);
-            
-            chunkDescriptors.push(
-                `Chunk ${i + 1}: records ${chunk.startIndex + 1}-${chunk.endIndex + 1} (~${Math.round(chunk.estimatedTokens)} tokens)`
-            );
+            const chunkJson = JSON.stringify(chunk.features, null, 2);
+            chunkDescriptors.push(`Chunk ${i + 1}: records ${chunk.startIndex + 1}-${chunk.endIndex + 1} (${chunkJson.length} chars)`);
 
             const chunkResponse = await callLLMAPI(
                 buildPrompt('rawChunk', query, chunkJson, {
@@ -740,34 +785,26 @@
                     totalChunks: chunks.length
                 })
             );
-            
             chunkNotes.push(`Chunk ${i + 1} findings:\n${chunkResponse}`);
         }
 
-        // Process the final combined response
         const truncatedNote = truncated
-            ? `Only ${processedCount} of ${allData.length} records were processed due to token limits.`
-            : `All ${processedCount} records were processed across ${chunks.length} chunks.`;
+            ? `Only the first ${processedCount} of ${allData.length} records could be processed due to token limits.`
+            : `All ${processedCount} records were processed across ${chunks.length} chunk(s).`;
 
         const finalPrompt = buildPrompt('rawFinal', query, chunkNotes.join('\n\n'), {
             chunkCount: chunks.length,
             truncatedNote
         });
-        
         const finalResponse = await callLLMAPI(finalPrompt);
 
-        const partialNotes = chunkNotes.join('\n\n');
-        const dataSummary = `${chunkDescriptors.join('\n')}
+    const partialNotes = chunkNotes.join('\n\n');
+    const dataSummary = `${chunkDescriptors.join('\n')}
 ${truncated ? `⚠️ ${truncatedNote}` : truncatedNote}
 
 Partial chunk notes forwarded to the final prompt:
 ${partialNotes}`;
-
-        return { 
-            response: finalResponse, 
-            category: truncated ? 'raw-chunked-partial' : 'raw-chunked', 
-            dataSummary 
-        };
+    return { response: finalResponse, category: truncated ? 'raw-chunked-partial' : 'raw-chunked', dataSummary };
     }
 
     async function processUserQuery(query, mode = 'cluster') {
@@ -1780,4 +1817,4 @@ Begin your narrative now:
 </script>
 
 </body>
-</html> 
+</html>
