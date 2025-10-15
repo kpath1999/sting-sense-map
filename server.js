@@ -75,7 +75,7 @@ app.post('/api/generate-summary', validateRequest, async (req, res) => {
                     content: prompt
                 }],
                 temperature: 0.7,
-                max_tokens: 500
+                max_tokens: 1000  // Increased to allow for more detailed responses
             })
         });
 
@@ -136,7 +136,7 @@ app.post('/api/generate-insight', validateRequest, async (req, res) => {
                     content: prompt
                 }],
                 temperature: 0.5,
-                max_tokens: 150
+                max_tokens: 200  // Sufficient for concise insights
             })
         });
 
