@@ -766,7 +766,9 @@
             };
         }
 
-        const { chunks, truncated, processedCount } = splitFeaturesForRaw(allData);
+        // Kausar (oct 21): switched from splitFeaturesForRaw to splitFeaturesForRawMode
+        // potentially processing 5-10× more records in the same token space.
+        const { chunks, truncated, processedCount } = splitFeaturesForRawMode(allData);
         if (!chunks.length) {
             throw new Error('Unable to prepare the dataset for raw analysis. Try switching to cluster mode.');
         }
