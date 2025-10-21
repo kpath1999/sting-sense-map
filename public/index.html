@@ -733,23 +733,51 @@
         });
     }
 
-    async function callLLMAPI(prompt) {
-        const response = await fetch('/api/generate-summary', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt })
-        });
+    async function callLLMAPI(prompt, retries = 3, delayMs = 2000) {
+        for (let attempt = 1; attempt <= retries; attempt++) {
+            try {
+                const response = await fetch('/api/generate-summary', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt })
+                });
 
-        if (!response.ok) {
-            throw new Error('Unable to retrieve analysis from the language model.');
-        }
+                if (response.status === 429) {
+                    // Rate limit hit
+                    const retryAfter = response.headers.get('Retry-After');
+                    const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : delayMs * attempt;
+                    
+                    if (attempt < retries) {
+                        console.warn(`⚠️ Rate limit hit (429). Retrying in ${waitTime/1000}s... (Attempt ${attempt}/${retries})`);
+                        await new Promise(resolve => setTimeout(resolve, waitTime));
+                        continue;
+                    } else {
+                        throw new Error(`Rate limit exceeded. Please wait a moment and try again. The API allows a limited number of requests per minute.`);
+                    }
+                }
 
-        const data = await response.json();
-        const message = data?.choices?.[0]?.message?.content;
-        if (!message) {
-            throw new Error('Received an empty response from the language model.');
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`API error (${response.status}): ${errorText || 'Unable to retrieve analysis from the language model.'}`);
+                }
+
+                const data = await response.json();
+                const message = data?.choices?.[0]?.message?.content;
+                if (!message) {
+                    throw new Error('Received an empty response from the language model.');
+                }
+                return message.trim();
+            } catch (error) {
+                if (attempt === retries) {
+                    throw error;
+                }
+                // For network errors, retry with exponential backoff
+                if (!error.message.includes('Rate limit')) {
+                    console.warn(`⚠️ API call failed: ${error.message}. Retrying... (Attempt ${attempt}/${retries})`);
+                    await new Promise(resolve => setTimeout(resolve, delayMs * attempt));
+                }
+            }
         }
-        return message.trim();
     }
 
     async function processRawMode(query) {
@@ -785,6 +813,13 @@
             const chunkJson = JSON.stringify(chunk.data, null, 2);
             chunkDescriptors.push(`Chunk ${i + 1}: records ${chunk.startIndex + 1}-${chunk.endIndex + 1} (${chunkJson.length} chars)`);
 
+            // Add delay between chunks to avoid rate limiting (except for first chunk)
+            if (i > 0) {
+                console.log(`⏳ Waiting 2s before processing chunk ${i + 1} to avoid rate limits...`);
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+
+            console.log(`📊 Processing chunk ${i + 1}/${chunks.length}...`);
             const chunkResponse = await callLLMAPI(
                 buildPrompt('rawChunk', query, chunkJson, {
                     chunkIndex: i + 1,
@@ -798,6 +833,11 @@
             ? `Only the first ${processedCount} of ${allData.length} records could be processed due to token limits.`
             : `All ${processedCount} records were processed across ${chunks.length} chunk(s).`;
 
+        // Add delay before final synthesis to avoid rate limiting
+        console.log(`⏳ Waiting 2s before final synthesis...`);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        console.log(`🔄 Synthesizing final response from ${chunks.length} chunk(s)...`);
         const finalPrompt = buildPrompt('rawFinal', query, chunkNotes.join('\n\n'), {
             chunkCount: chunks.length,
             truncatedNote
@@ -2133,12 +2173,89 @@ Begin your narrative now:
         }
     };
 
+    // Diagnostic function to test API connectivity and rate limits
+    window.testAPIConnection = async function() {
+        console.log("🔍 Testing API Connection...\n");
+        
+        const testPrompt = "Reply with just the word 'OK'";
+        const startTime = performance.now();
+        
+        try {
+            const response = await fetch('/api/generate-summary', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt: testPrompt })
+            });
+            
+            const endTime = performance.now();
+            const latency = ((endTime - startTime) / 1000).toFixed(2);
+            
+            console.log(`⏱️ Latency: ${latency}s`);
+            console.log(`📊 Status: ${response.status} ${response.statusText}`);
+            
+            if (response.status === 429) {
+                const retryAfter = response.headers.get('Retry-After');
+                console.error(`❌ Rate limit hit!`);
+                if (retryAfter) {
+                    console.log(`⏰ Retry after: ${retryAfter} seconds`);
+                }
+                console.log(`\n💡 SOLUTION: Wait a moment before making more requests.`);
+                return { status: 'rate_limited', retryAfter };
+            }
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`❌ API Error: ${errorText}`);
+                return { status: 'error', message: errorText };
+            }
+            
+            const data = await response.json();
+            console.log(`✅ API is working!`);
+            console.log(`📝 Response:`, data?.choices?.[0]?.message?.content);
+            
+            return { status: 'ok', latency };
+        } catch (error) {
+            console.error(`❌ Connection failed:`, error.message);
+            return { status: 'error', message: error.message };
+        }
+    };
+
+    // Diagnostic function to estimate raw mode API calls
+    window.estimateRawModeCalls = function() {
+        if (!allData || allData.length === 0) {
+            console.error("❌ No data loaded yet.");
+            return;
+        }
+
+        const { chunks, truncated, processedCount } = splitFeaturesForRawMode(allData);
+        
+        console.log("📊 Raw Mode API Call Estimation:");
+        console.log(`   Dataset size: ${allData.length} records`);
+        console.log(`   Chunks needed: ${chunks.length}`);
+        console.log(`   Records processed: ${processedCount}`);
+        console.log(`   Truncated: ${truncated ? 'Yes' : 'No'}`);
+        console.log(`   Total API calls: ${chunks.length + 1} (${chunks.length} chunks + 1 synthesis)`);
+        console.log(`   Estimated time: ~${(chunks.length + 1) * 2}s (with 2s delays)`);
+        
+        chunks.forEach((chunk, i) => {
+            console.log(`   Chunk ${i + 1}: records ${chunk.startIndex + 1}-${chunk.endIndex + 1}, ~${chunk.estimatedTokens.toFixed(0)} tokens`);
+        });
+        
+        return {
+            totalCalls: chunks.length + 1,
+            chunks: chunks.length,
+            estimatedTimeSeconds: (chunks.length + 1) * 2
+        };
+    };
+
     // Add benchmark questions to window for easy access
     window.benchmarkQuestions = benchmarkQuestions;
     
     console.log("✅ Benchmark system loaded!");
     console.log("📌 Run benchmark with: runBenchmark()");
     console.log("📌 View questions with: benchmarkQuestions");
+    console.log("📌 Test API connection: testAPIConnection()");
+    console.log("📌 Estimate raw mode calls: estimateRawModeCalls()");
 </script>
 
 </body>
