@@ -350,6 +350,55 @@
     const TOKENS_PER_CHAR_ESTIMATE = 0.35;       // approximate tokens per character
     const MAX_INPUT_TOKENS = 8000;               // safe limit for the model
 
+    // ============================================================================
+    // RATE LIMITING CONFIGURATION
+    // Adjust these to prevent 429 errors when using raw mode
+    // ============================================================================
+    const RATE_LIMIT_CONFIG = {
+        // Delay between chunk processing (milliseconds)
+        // Increase if you're hitting rate limits frequently
+        // Recommended: 3000-5000ms for strict rate limits, 2000ms for moderate
+        CHUNK_DELAY_MS: 2000,
+        
+        // Delay before final synthesis call (milliseconds)
+        // Should be at least as long as CHUNK_DELAY_MS
+        FINAL_DELAY_MS: 2000,
+        
+        // Maximum number of retry attempts when rate limited
+        // More retries = more resilient, but slower on failure
+        MAX_RETRIES: 3,
+        
+        // Base delay for exponential backoff on retries (milliseconds)
+        // On retry N, wait: RETRY_BASE_DELAY_MS * N
+        RETRY_BASE_DELAY_MS: 2000,
+        
+        // Maximum chunks to process in raw mode
+        // Lower = fewer API calls but less data analyzed
+        // Higher = more comprehensive but more API calls
+        MAX_CHUNKS: 8,
+        
+        // Minimum delay enforced between ANY consecutive API calls (milliseconds)
+        // Safety net to prevent accidental rapid-fire requests
+        MIN_REQUEST_SPACING_MS: 1500
+    };
+
+    // Track last API call time for rate limiting
+    let lastAPICallTime = 0;
+
+    async function enforceRateLimit() {
+        const now = Date.now();
+        const timeSinceLastCall = now - lastAPICallTime;
+        const minSpacing = RATE_LIMIT_CONFIG.MIN_REQUEST_SPACING_MS;
+        
+        if (timeSinceLastCall < minSpacing) {
+            const waitTime = minSpacing - timeSinceLastCall;
+            console.log(`⏳ Enforcing minimum ${minSpacing}ms spacing between API calls (waiting ${waitTime}ms)...`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
+        
+        lastAPICallTime = Date.now();
+    }
+
     function splitFeaturesForRaw(features, charLimit = RAW_SINGLE_REQUEST_CHAR_LIMIT, maxChunks = RAW_MAX_CHUNKS) {
         const result = [];
         let current = [];
@@ -529,9 +578,9 @@
             processed = endIndex + 1;
             startIndex = endIndex + 1;
             
-            // Safety check to prevent infinite loops
-            if (result.length > 20) {
-                console.warn('Exceeded maximum number of chunks (20)');
+            // Safety check to prevent infinite loops and respect max chunks
+            if (result.length >= RATE_LIMIT_CONFIG.MAX_CHUNKS) {
+                console.warn(`⚠️ Reached maximum chunk limit (${RATE_LIMIT_CONFIG.MAX_CHUNKS}). Stopping chunking.`);
                 break;
             }
         }
@@ -733,7 +782,10 @@
         });
     }
 
-    async function callLLMAPI(prompt, retries = 3, delayMs = 2000) {
+    async function callLLMAPI(prompt, retries = RATE_LIMIT_CONFIG.MAX_RETRIES, delayMs = RATE_LIMIT_CONFIG.RETRY_BASE_DELAY_MS) {
+        // Enforce minimum spacing between API calls
+        await enforceRateLimit();
+        
         for (let attempt = 1; attempt <= retries; attempt++) {
             try {
                 const response = await fetch('/api/generate-summary', {
@@ -815,8 +867,9 @@
 
             // Add delay between chunks to avoid rate limiting (except for first chunk)
             if (i > 0) {
-                console.log(`⏳ Waiting 2s before processing chunk ${i + 1} to avoid rate limits...`);
-                await new Promise(resolve => setTimeout(resolve, 2000));
+                const delaySeconds = RATE_LIMIT_CONFIG.CHUNK_DELAY_MS / 1000;
+                console.log(`⏳ Waiting ${delaySeconds}s before processing chunk ${i + 1} to avoid rate limits...`);
+                await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_CONFIG.CHUNK_DELAY_MS));
             }
 
             console.log(`📊 Processing chunk ${i + 1}/${chunks.length}...`);
@@ -834,8 +887,9 @@
             : `All ${processedCount} records were processed across ${chunks.length} chunk(s).`;
 
         // Add delay before final synthesis to avoid rate limiting
-        console.log(`⏳ Waiting 2s before final synthesis...`);
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        const finalDelaySeconds = RATE_LIMIT_CONFIG.FINAL_DELAY_MS / 1000;
+        console.log(`⏳ Waiting ${finalDelaySeconds}s before final synthesis...`);
+        await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_CONFIG.FINAL_DELAY_MS));
 
         console.log(`🔄 Synthesizing final response from ${chunks.length} chunk(s)...`);
         const finalPrompt = buildPrompt('rawFinal', query, chunkNotes.join('\n\n'), {
@@ -2235,7 +2289,14 @@ Begin your narrative now:
         console.log(`   Records processed: ${processedCount}`);
         console.log(`   Truncated: ${truncated ? 'Yes' : 'No'}`);
         console.log(`   Total API calls: ${chunks.length + 1} (${chunks.length} chunks + 1 synthesis)`);
-        console.log(`   Estimated time: ~${(chunks.length + 1) * 2}s (with 2s delays)`);
+        
+        const chunkDelayTime = (chunks.length - 1) * (RATE_LIMIT_CONFIG.CHUNK_DELAY_MS / 1000);
+        const finalDelayTime = RATE_LIMIT_CONFIG.FINAL_DELAY_MS / 1000;
+        const minSpacingTime = (chunks.length + 1) * (RATE_LIMIT_CONFIG.MIN_REQUEST_SPACING_MS / 1000);
+        const totalEstimatedTime = chunkDelayTime + finalDelayTime + minSpacingTime;
+        
+        console.log(`   Estimated time: ~${totalEstimatedTime.toFixed(1)}s`);
+        console.log(`   (${chunkDelayTime}s chunk delays + ${finalDelayTime}s final delay + ${minSpacingTime.toFixed(1)}s min spacing)`);
         
         chunks.forEach((chunk, i) => {
             console.log(`   Chunk ${i + 1}: records ${chunk.startIndex + 1}-${chunk.endIndex + 1}, ~${chunk.estimatedTokens.toFixed(0)} tokens`);
@@ -2244,18 +2305,120 @@ Begin your narrative now:
         return {
             totalCalls: chunks.length + 1,
             chunks: chunks.length,
-            estimatedTimeSeconds: (chunks.length + 1) * 2
+            estimatedTimeSeconds: totalEstimatedTime
         };
+    };
+
+    // Function to adjust rate limit settings
+    window.configureRateLimits = function(options = {}) {
+        console.log("⚙️ Current Rate Limit Configuration:");
+        console.log(JSON.stringify(RATE_LIMIT_CONFIG, null, 2));
+        
+        if (Object.keys(options).length === 0) {
+            console.log("\n💡 To modify settings, call with options object:");
+            console.log("configureRateLimits({ CHUNK_DELAY_MS: 5000, MAX_CHUNKS: 5 })");
+            console.log("\nAvailable settings:");
+            console.log("  CHUNK_DELAY_MS: delay between chunks (default: 2000)");
+            console.log("  FINAL_DELAY_MS: delay before final synthesis (default: 2000)");
+            console.log("  MAX_RETRIES: retry attempts on failure (default: 3)");
+            console.log("  RETRY_BASE_DELAY_MS: base retry delay (default: 2000)");
+            console.log("  MAX_CHUNKS: max chunks to process (default: 8)");
+            console.log("  MIN_REQUEST_SPACING_MS: min time between any requests (default: 1500)");
+            return RATE_LIMIT_CONFIG;
+        }
+        
+        // Update settings
+        Object.keys(options).forEach(key => {
+            if (RATE_LIMIT_CONFIG.hasOwnProperty(key)) {
+                const oldValue = RATE_LIMIT_CONFIG[key];
+                RATE_LIMIT_CONFIG[key] = options[key];
+                console.log(`✅ Updated ${key}: ${oldValue} → ${options[key]}`);
+            } else {
+                console.warn(`⚠️ Unknown setting: ${key}`);
+            }
+        });
+        
+        console.log("\n✅ New configuration:");
+        console.log(JSON.stringify(RATE_LIMIT_CONFIG, null, 2));
+        
+        return RATE_LIMIT_CONFIG;
     };
 
     // Add benchmark questions to window for easy access
     window.benchmarkQuestions = benchmarkQuestions;
+    
+    // Quick helper to show recommended settings for different rate limit scenarios
+    window.recommendedRateLimitPresets = {
+        strict: {
+            name: "Strict (Very Low Rate Limits)",
+            description: "For APIs with tight limits (e.g., 3 RPM)",
+            settings: {
+                CHUNK_DELAY_MS: 5000,
+                FINAL_DELAY_MS: 5000,
+                MAX_RETRIES: 5,
+                RETRY_BASE_DELAY_MS: 3000,
+                MAX_CHUNKS: 3,
+                MIN_REQUEST_SPACING_MS: 3000
+            }
+        },
+        moderate: {
+            name: "Moderate (Standard Rate Limits)",
+            description: "For APIs with moderate limits (e.g., 10-20 RPM)",
+            settings: {
+                CHUNK_DELAY_MS: 3000,
+                FINAL_DELAY_MS: 3000,
+                MAX_RETRIES: 3,
+                RETRY_BASE_DELAY_MS: 2000,
+                MAX_CHUNKS: 5,
+                MIN_REQUEST_SPACING_MS: 2000
+            }
+        },
+        relaxed: {
+            name: "Relaxed (High Rate Limits)",
+            description: "For APIs with generous limits (e.g., 60+ RPM)",
+            settings: {
+                CHUNK_DELAY_MS: 1000,
+                FINAL_DELAY_MS: 1000,
+                MAX_RETRIES: 2,
+                RETRY_BASE_DELAY_MS: 1000,
+                MAX_CHUNKS: 10,
+                MIN_REQUEST_SPACING_MS: 500
+            }
+        },
+        current: {
+            name: "Current (Default Settings)",
+            description: "The default balanced configuration",
+            settings: {
+                CHUNK_DELAY_MS: 2000,
+                FINAL_DELAY_MS: 2000,
+                MAX_RETRIES: 3,
+                RETRY_BASE_DELAY_MS: 2000,
+                MAX_CHUNKS: 8,
+                MIN_REQUEST_SPACING_MS: 1500
+            }
+        }
+    };
+    
+    window.applyRateLimitPreset = function(presetName) {
+        const preset = window.recommendedRateLimitPresets[presetName];
+        if (!preset) {
+            console.error(`❌ Unknown preset: ${presetName}`);
+            console.log("Available presets:", Object.keys(window.recommendedRateLimitPresets).join(', '));
+            return;
+        }
+        
+        console.log(`🎛️ Applying preset: ${preset.name}`);
+        console.log(`   ${preset.description}`);
+        return configureRateLimits(preset.settings);
+    };
     
     console.log("✅ Benchmark system loaded!");
     console.log("📌 Run benchmark with: runBenchmark()");
     console.log("📌 View questions with: benchmarkQuestions");
     console.log("📌 Test API connection: testAPIConnection()");
     console.log("📌 Estimate raw mode calls: estimateRawModeCalls()");
+    console.log("📌 Configure rate limits: configureRateLimits({ CHUNK_DELAY_MS: 5000 })");
+    console.log("📌 Apply preset: applyRateLimitPreset('strict' | 'moderate' | 'relaxed')");
 </script>
 
 </body>
