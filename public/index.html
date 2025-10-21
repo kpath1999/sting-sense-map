@@ -782,7 +782,7 @@
 
         for (let i = 0; i < chunks.length; i++) {
             const chunk = chunks[i];
-            const chunkJson = JSON.stringify(chunk.features, null, 2);
+            const chunkJson = JSON.stringify(chunk.data, null, 2);
             chunkDescriptors.push(`Chunk ${i + 1}: records ${chunk.startIndex + 1}-${chunk.endIndex + 1} (${chunkJson.length} chars)`);
 
             const chunkResponse = await callLLMAPI(
@@ -1820,6 +1820,325 @@ Begin your narrative now:
     }
 
     attachQueryHandlers();
+
+    // ============================================================================
+    // BENCHMARK SYSTEM FOR CLUSTER VS RAW MODE COMPARISON
+    // ============================================================================
+    
+    const benchmarkQuestions = [
+        {
+            id: "aggressive-driving",
+            question: "Tell me about aggressive driving behaviors around campus",
+            groundTruth: "Should identify Klaus and Student Center as hotspots, mention hard braking or rapid acceleration"
+        },
+        {
+            id: "dwell-time",
+            question: "Which parts of campus have the highest dwell time associated with them",
+            groundTruth: "Should mention long pauses near Student Center, CRC, or Klaus with durations over 2 minutes"
+        },
+        {
+            id: "moderate-behavior",
+            question: "How many instances of moderate driving behavior can be found on campus",
+            groundTruth: "Should provide a numeric count of 'Moderate' behavior events from the dataset"
+        },
+        {
+            id: "route-efficiency",
+            question: "How efficient was the bus route",
+            groundTruth: "Should mention efficiency ratio and compare traveled distance to straight-line distance"
+        },
+        {
+            id: "tech-square-patterns",
+            question: "What are the driving patterns like around Tech Square",
+            groundTruth: "Should reference Tech Square and describe behavior types (moderate, aggressive) found there"
+        }
+    ];
+
+    class ContextModeEvaluator {
+        constructor(questions) {
+            this.benchmarks = questions;
+            this.results = [];
+        }
+
+        estimateTokens(text) {
+            if (!text) return 0;
+            return Math.ceil(text.length / 4);
+        }
+
+        calculateCost(promptTokens, responseTokens) {
+            // Adjust these rates based on your actual LLM pricing
+            const promptCost = (promptTokens / 1_000_000) * 0.50;  // $0.50 per 1M input tokens
+            const responseCost = (responseTokens / 1_000_000) * 1.50; // $1.50 per 1M output tokens
+            return promptCost + responseCost;
+        }
+
+        async testMode(benchmark, mode) {
+            console.log(`   Testing '${mode}' mode for: "${benchmark.question}"`);
+            const startTime = performance.now();
+            
+            try {
+                const result = await processUserQuery(benchmark.question, mode);
+                const endTime = performance.now();
+
+                const latencyMs = endTime - startTime;
+                const promptTokens = this.estimateTokens(result.dataSummary);
+                const responseTokens = this.estimateTokens(result.response);
+                const totalCost = this.calculateCost(promptTokens, responseTokens);
+
+                return {
+                    latencyMs,
+                    latencySec: (latencyMs / 1000).toFixed(2),
+                    promptTokens,
+                    responseTokens,
+                    totalTokens: promptTokens + responseTokens,
+                    costUSD: totalCost,
+                    response: result.response,
+                    dataSummary: result.dataSummary,
+                    category: result.category,
+                    groundTruth: benchmark.groundTruth,
+                    error: null
+                };
+            } catch (error) {
+                const endTime = performance.now();
+                console.error(`Error in '${mode}' mode for "${benchmark.question}":`, error);
+                return {
+                    latencyMs: endTime - startTime,
+                    latencySec: ((endTime - startTime) / 1000).toFixed(2),
+                    error: error.message,
+                    groundTruth: benchmark.groundTruth
+                };
+            }
+        }
+
+        async run() {
+            console.log("🚀 Starting Context Mode Benchmark Evaluation");
+            console.log(`📊 Testing ${this.benchmarks.length} questions in both modes\n`);
+            
+            const allResults = [];
+            
+            for (let i = 0; i < this.benchmarks.length; i++) {
+                const benchmark = this.benchmarks[i];
+                console.log(`\n[${i + 1}/${this.benchmarks.length}] "${benchmark.question}"`);
+                
+                const clusterResult = await this.testMode(benchmark, 'cluster');
+                const rawResult = await this.testMode(benchmark, 'raw');
+                
+                allResults.push({
+                    questionId: benchmark.id,
+                    question: benchmark.question,
+                    groundTruth: benchmark.groundTruth,
+                    cluster: clusterResult,
+                    raw: rawResult,
+                    timestamp: new Date().toISOString()
+                });
+                
+                // Brief pause between questions to avoid overwhelming the API
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+            
+            this.results = allResults;
+            return allResults;
+        }
+
+        displayResultsSummary() {
+            console.log("\n" + "=".repeat(80));
+            console.log("📈 BENCHMARK RESULTS SUMMARY");
+            console.log("=".repeat(80) + "\n");
+
+            // Create comparison table
+            const tableData = this.results.flatMap(r => [
+                {
+                    Question: r.question.substring(0, 50) + "...",
+                    Mode: 'Cluster',
+                    'Latency (s)': r.cluster.error ? 'FAIL' : r.cluster.latencySec,
+                    'Est. Cost ($)': r.cluster.error ? 'N/A' : r.cluster.costUSD.toFixed(6),
+                    'Prompt Tokens': r.cluster.promptTokens || 'N/A',
+                    'Response Tokens': r.cluster.responseTokens || 'N/A',
+                    'Total Tokens': r.cluster.totalTokens || 'N/A'
+                },
+                {
+                    Question: '',
+                    Mode: 'Raw',
+                    'Latency (s)': r.raw.error ? 'FAIL' : r.raw.latencySec,
+                    'Est. Cost ($)': r.raw.error ? 'N/A' : r.raw.costUSD.toFixed(6),
+                    'Prompt Tokens': r.raw.promptTokens || 'N/A',
+                    'Response Tokens': r.raw.responseTokens || 'N/A',
+                    'Total Tokens': r.raw.totalTokens || 'N/A'
+                }
+            ]);
+
+            console.table(tableData);
+
+            // Calculate aggregates
+            const clusterStats = this.calculateAggregates(this.results.map(r => r.cluster));
+            const rawStats = this.calculateAggregates(this.results.map(r => r.raw));
+
+            console.log("\n📊 AGGREGATE STATISTICS");
+            console.log("-".repeat(80));
+            console.log("Cluster Mode:");
+            console.log(`  Avg Latency: ${clusterStats.avgLatency.toFixed(2)}s`);
+            console.log(`  Avg Cost: $${clusterStats.avgCost.toFixed(6)}`);
+            console.log(`  Avg Total Tokens: ${clusterStats.avgTokens.toFixed(0)}`);
+            console.log(`  Success Rate: ${clusterStats.successRate}%`);
+            
+            console.log("\nRaw Mode:");
+            console.log(`  Avg Latency: ${rawStats.avgLatency.toFixed(2)}s`);
+            console.log(`  Avg Cost: $${rawStats.avgCost.toFixed(6)}`);
+            console.log(`  Avg Total Tokens: ${rawStats.avgTokens.toFixed(0)}`);
+            console.log(`  Success Rate: ${rawStats.successRate}%`);
+
+            console.log("\n" + "=".repeat(80));
+        }
+
+        calculateAggregates(results) {
+            const successful = results.filter(r => !r.error);
+            const successCount = successful.length;
+            const totalCount = results.length;
+
+            if (successCount === 0) {
+                return {
+                    avgLatency: 0,
+                    avgCost: 0,
+                    avgTokens: 0,
+                    successRate: 0
+                };
+            }
+
+            const avgLatency = successful.reduce((sum, r) => sum + r.latencyMs, 0) / successCount / 1000;
+            const avgCost = successful.reduce((sum, r) => sum + r.costUSD, 0) / successCount;
+            const avgTokens = successful.reduce((sum, r) => sum + r.totalTokens, 0) / successCount;
+            const successRate = ((successCount / totalCount) * 100).toFixed(1);
+
+            return { avgLatency, avgCost, avgTokens, successRate };
+        }
+
+        displayDetailedResponses() {
+            console.log("\n" + "=".repeat(80));
+            console.log("📝 DETAILED RESPONSES FOR MANUAL ACCURACY REVIEW");
+            console.log("=".repeat(80));
+
+            this.results.forEach((r, i) => {
+                console.log(`\n${"─".repeat(80)}`);
+                console.log(`Question ${i + 1}: ${r.question}`);
+                console.log(`Ground Truth: ${r.groundTruth}`);
+                console.log(`${"─".repeat(80)}`);
+                
+                console.log("\n[CLUSTER MODE RESPONSE]");
+                console.log(r.cluster.response || `ERROR: ${r.cluster.error}`);
+                
+                console.log("\n[RAW MODE RESPONSE]");
+                console.log(r.raw.response || `ERROR: ${r.raw.error}`);
+                
+                console.log("\n");
+            });
+        }
+
+        exportToJSON() {
+            const exportData = {
+                metadata: {
+                    timestamp: new Date().toISOString(),
+                    totalQuestions: this.benchmarks.length,
+                    datasetSize: allData.length
+                },
+                results: this.results
+            };
+
+            const dataStr = JSON.stringify(exportData, null, 2);
+            console.log("\n📦 Benchmark Results (JSON):");
+            console.log("Copy the object below to save your results:\n");
+            console.log(dataStr);
+            
+            // Also save to localStorage
+            try {
+                localStorage.setItem('benchmarkResults', dataStr);
+                localStorage.setItem('benchmarkResults_timestamp', new Date().toISOString());
+                console.log("\n✅ Results also saved to localStorage under key 'benchmarkResults'");
+            } catch (e) {
+                console.warn("⚠️ Could not save to localStorage:", e.message);
+            }
+
+            return exportData;
+        }
+
+        exportToCSV() {
+            let csv = "Question ID,Question,Mode,Latency (s),Prompt Tokens,Response Tokens,Total Tokens,Est. Cost ($),Error\n";
+            
+            this.results.forEach(r => {
+                // Cluster row
+                csv += `${r.questionId},"${r.question.replace(/"/g, '""')}",cluster,`;
+                csv += `${r.cluster.latencySec},`;
+                csv += `${r.cluster.promptTokens || ''},`;
+                csv += `${r.cluster.responseTokens || ''},`;
+                csv += `${r.cluster.totalTokens || ''},`;
+                csv += `${r.cluster.costUSD?.toFixed(6) || ''},`;
+                csv += `"${r.cluster.error || ''}"\n`;
+                
+                // Raw row
+                csv += `${r.questionId},"${r.question.replace(/"/g, '""')}",raw,`;
+                csv += `${r.raw.latencySec},`;
+                csv += `${r.raw.promptTokens || ''},`;
+                csv += `${r.raw.responseTokens || ''},`;
+                csv += `${r.raw.totalTokens || ''},`;
+                csv += `${r.raw.costUSD?.toFixed(6) || ''},`;
+                csv += `"${r.raw.error || ''}"\n`;
+            });
+
+            console.log("\n📊 CSV Export:");
+            console.log(csv);
+
+            // Create downloadable file
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `benchmark_${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            console.log("✅ CSV file download initiated");
+            
+            return csv;
+        }
+    }
+
+    // Global function to run the benchmark
+    window.runBenchmark = async function() {
+        if (!allData || allData.length === 0) {
+            console.error("❌ No data loaded. Please wait for the map to load data first.");
+            return;
+        }
+
+        console.clear();
+        const evaluator = new ContextModeEvaluator(benchmarkQuestions);
+        
+        try {
+            await evaluator.run();
+            evaluator.displayResultsSummary();
+            evaluator.displayDetailedResponses();
+            
+            // Export results
+            const jsonData = evaluator.exportToJSON();
+            evaluator.exportToCSV();
+            
+            console.log("\n✅ Benchmark complete!");
+            console.log("\n💡 TIP: To manually score accuracy, review the detailed responses above.");
+            console.log("💡 TIP: Results are saved in localStorage. Retrieve with: JSON.parse(localStorage.getItem('benchmarkResults'))");
+            console.log("💡 TIP: CSV file has been downloaded for your analysis.");
+            
+            return jsonData;
+        } catch (error) {
+            console.error("❌ Benchmark failed:", error);
+            throw error;
+        }
+    };
+
+    // Add benchmark questions to window for easy access
+    window.benchmarkQuestions = benchmarkQuestions;
+    
+    console.log("✅ Benchmark system loaded!");
+    console.log("📌 Run benchmark with: runBenchmark()");
+    console.log("📌 View questions with: benchmarkQuestions");
 </script>
 
 </body>
