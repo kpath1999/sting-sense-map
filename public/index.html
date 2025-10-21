@@ -768,6 +768,9 @@
 
         // Kausar (oct 21): switched from splitFeaturesForRaw to splitFeaturesForRawMode
         // potentially processing 5-10× more records in the same token space.
+        const TOKENS_PER_CHAR_ESTIMATE = 0.35;       // approximate tokens per character
+        const MAX_INPUT_TOKENS = 8000;               // safe limit for the model
+
         const { chunks, truncated, processedCount } = splitFeaturesForRawMode(allData);
         if (!chunks.length) {
             throw new Error('Unable to prepare the dataset for raw analysis. Try switching to cluster mode.');
