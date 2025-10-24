@@ -346,7 +346,7 @@
     };
 
     const RAW_SINGLE_REQUEST_CHAR_LIMIT = 11000;
-    const RAW_MAX_CHUNKS = 5;
+    const RAW_MAX_CHUNKS = 50;
     const TOKENS_PER_CHAR_ESTIMATE = 0.35;       // approximate tokens per character
     const MAX_INPUT_TOKENS = 3000;               // Reduced from 4000 to create lighter, safer chunks
 
@@ -405,9 +405,9 @@
         RETRY_BASE_DELAY_MS: 15000,
         
         // Maximum chunks to process in raw mode
-        // Increased to 30 to handle 1,219 records with 4K token chunks (~25-26 chunks needed)
+        // Increased to 50 to handle 1,219 records with 4K token chunks (~25-26 chunks needed)
         // Trade-off: More API calls = longer processing time but fuller dataset analysis
-        MAX_CHUNKS: 30,
+        MAX_CHUNKS: 50,
         
         // Minimum delay enforced between ANY consecutive API calls (milliseconds)
         // Increased to 40 seconds for ultra-conservative approach to avoid 429 errors
