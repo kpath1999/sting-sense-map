@@ -75,7 +75,7 @@ app.post('/api/generate-summary', validateRequest, async (req, res) => {
                     content: prompt
                 }],
                 temperature: 0.7,
-                max_tokens: 1000  // Increased to allow for more detailed responses
+                max_tokens: 500  // Reduced from 1000 to stay under 6K TPM limit (4K input + 500 output = 4.5K total)
             })
         });
 
@@ -136,7 +136,7 @@ app.post('/api/generate-insight', validateRequest, async (req, res) => {
                     content: prompt
                 }],
                 temperature: 0.5,
-                max_tokens: 200  // Sufficient for concise insights
+                max_tokens: 150  // Reduced from 200 to be more conservative with 6K TPM limit
             })
         });
 
