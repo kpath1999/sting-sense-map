@@ -69,7 +69,7 @@ app.post('/api/generate-summary', validateRequest, async (req, res) => {
                 'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
             },
             body: JSON.stringify({
-                model: "groq/compound",
+                model: "llama-3.1-8b-instant",
                 messages: [{
                     role: "user",
                     content: prompt
@@ -130,7 +130,7 @@ app.post('/api/generate-insight', validateRequest, async (req, res) => {
                 'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
             },
             body: JSON.stringify({
-                model: "groq/compound",
+                model: "llama-3.1-8b-instant",
                 messages: [{
                     role: "user",
                     content: prompt

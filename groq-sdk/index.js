@@ -11,7 +11,7 @@ async function main() {
           content: "what is the quality of Georgia tech Stinger buses?",
         },
       ],
-      model: "groq/compound",
+      model: "llama-3.1-8b-instant",
     })
     .then((chatCompletion) => {
       process.stdout.write(chatCompletion.choices[0]?.message?.content || "");
