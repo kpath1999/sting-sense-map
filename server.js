@@ -1,8 +1,8 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const fetch = require('node-fetch');
-const path = require('path'); // Import the path module
+const { streamText } = require('ai');
+const path = require('path');
 
 const app = express();
 app.use(cors());
@@ -24,7 +24,7 @@ app.get('/api/health', (req, res) => {
     res.json({ 
         status: 'ok', 
         env: process.env.NODE_ENV,
-        hasApiKey: !!process.env.GROQ_API_KEY 
+        hasApiKey: !!process.env.AI_GATEWAY_API_KEY 
     });
 });
 
@@ -53,45 +53,45 @@ app.post('/api/generate-summary', validateRequest, async (req, res) => {
     }
 
     try {
-        if (!process.env.GROQ_API_KEY) {
-            console.error('GROQ_API_KEY is not defined');
+        if (!process.env.AI_GATEWAY_API_KEY) {
+            console.error('AI_GATEWAY_API_KEY is not defined');
             return res.status(500).json({ 
                 error: 'API configuration error',
                 message: 'Please contact the administrator'
             });
         }
 
-        console.log('Making request to Groq API...');
-        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
-            },
-            body: JSON.stringify({
-                model: "llama-3.1-8b-instant",
-                messages: [{
-                    role: "user",
-                    content: prompt
-                }],
-                temperature: 0.7,
-                max_tokens: 500  // Reduced from 1000 to stay under 6K TPM limit (4K input + 500 output = 4.5K total)
-            })
+        console.log('Making request to AI Gateway with xai/grok-3...');
+        
+        const result = await streamText({
+            model: 'xai/grok-3',
+            prompt: prompt,
+            maxTokens: 500  // Limit response to stay within rate limits
         });
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            console.error('Groq API error:', errorData);
-            
-            // Return a user-friendly error message
-            return res.status(response.status).json({ 
-                error: 'Unable to generate response',
-                message: 'Please try again later'
-            });
+        // Collect the full response
+        let fullResponse = '';
+        for await (const textPart of result.textStream) {
+            fullResponse += textPart;
         }
 
-        const data = await response.json();
-        console.log('Successfully received response from Groq API');
+        const usage = await result.usage;
+        const finishReason = await result.finishReason;
+
+        console.log('Successfully received response from AI Gateway');
+        console.log('Token usage:', usage);
+
+        // Format response to match OpenAI-style structure for compatibility
+        const data = {
+            choices: [{
+                message: {
+                    content: fullResponse,
+                    role: 'assistant'
+                },
+                finish_reason: finishReason
+            }],
+            usage: usage
+        };
 
         // Cache the successful response
         responseCache.set(cacheKey, data);
@@ -118,36 +118,42 @@ app.post('/api/generate-insight', validateRequest, async (req, res) => {
     }
 
     try {
-        if (!process.env.GROQ_API_KEY) {
-            console.error('GROQ_API_KEY is not defined');
+        if (!process.env.AI_GATEWAY_API_KEY) {
+            console.error('AI_GATEWAY_API_KEY is not defined');
             return res.status(500).json({ error: 'API configuration error' });
         }
 
-        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
-            },
-            body: JSON.stringify({
-                model: "llama-3.1-8b-instant",
-                messages: [{
-                    role: "user",
-                    content: prompt
-                }],
-                temperature: 0.5,
-                max_tokens: 150  // Reduced from 200 to be more conservative with 6K TPM limit
-            })
+        console.log('Making insight request to AI Gateway with xai/grok-3...');
+        
+        const result = await streamText({
+            model: 'xai/grok-3',
+            prompt: prompt,
+            maxTokens: 150  // Shorter responses for insights
         });
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            console.error('Groq API error on insight generation:', errorData);
-            return res.status(response.status).json({ error: 'Unable to generate insight' });
+        // Collect the full response
+        let fullResponse = '';
+        for await (const textPart of result.textStream) {
+            fullResponse += textPart;
         }
 
-        const data = await response.json();
-        console.log('Successfully received insight from Groq API');
+        const usage = await result.usage;
+        const finishReason = await result.finishReason;
+
+        console.log('Successfully received insight from AI Gateway');
+        console.log('Token usage:', usage);
+
+        // Format response to match OpenAI-style structure for compatibility
+        const data = {
+            choices: [{
+                message: {
+                    content: fullResponse,
+                    role: 'assistant'
+                },
+                finish_reason: finishReason
+            }],
+            usage: usage
+        };
 
         responseCache.set(cacheKey, data);
         res.json(data);
@@ -173,7 +179,7 @@ if (process.env.NODE_ENV !== 'production') {
     app.listen(PORT, () => {
         console.log(`Server running on port ${PORT}`);
         console.log(`Environment: ${process.env.NODE_ENV}`);
-        console.log(`API Key present: ${!!process.env.GROQ_API_KEY}`);
+        console.log(`AI Gateway API Key present: ${!!process.env.AI_GATEWAY_API_KEY}`);
     });
 }
 

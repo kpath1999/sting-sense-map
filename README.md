@@ -235,13 +235,45 @@ The system adapts analysis strategy based on natural language queries:
 
 **Frontend**: Leaflet.js for map visualization, vanilla JavaScript for UI/logic  
 **Backend**: Express.js serverless functions via Vercel  
-**LLM Provider**: Groq API (Llama 4 Scout 17B)  
+**LLM Provider**: Vercel AI Gateway → xAI Grok-3 (via Vercel AI SDK)  
 **Data Format**: GeoJSON with enriched properties (behavior classification, instability scores, acceleration percentiles)
 
 **Key Files**:
 - `public/index.html`: Core analysis logic, context injection pipeline
 - `server.js`: API endpoints, LLM integration
 - `bus_route_with_clusters.geojson`: Pre-processed telemetry with behavior labels
+
+### AI Integration via Vercel AI Gateway
+
+The system uses **Vercel's AI Gateway** with the **xAI Grok-3** model for natural language synthesis.
+
+**Integration Architecture**:
+- **AI SDK**: Vercel AI SDK (`ai` package) with `streamText()` for streaming responses
+- **Model**: `xai/grok-3` - Advanced reasoning model from xAI
+- **Authentication**: `AI_GATEWAY_API_KEY` environment variable
+- **Response Format**: OpenAI-compatible structure for frontend compatibility
+
+**Advantages**:
+- **Unified Interface**: Switch models without code changes
+- **Built-in Monitoring**: Track usage and costs in Vercel dashboard
+- **Provider Fallbacks**: Configure automatic fallbacks if primary model unavailable
+- **Rate Limiting**: Managed by AI Gateway infrastructure
+- **Semantic Caching**: Reduce costs with intelligent response caching
+
+**Environment Setup**:
+```bash
+# Required environment variable
+AI_GATEWAY_API_KEY=your_vercel_ai_gateway_key
+```
+
+**Testing**:
+```bash
+# Test AI Gateway integration
+node test_ai_gateway.js
+
+# Run server locally
+npm start
+```
 
 ---
 

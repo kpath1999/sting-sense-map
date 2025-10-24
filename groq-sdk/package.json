@@ -1,5 +1,6 @@
 {
   "dependencies": {
-    "groq-sdk": "^0.24.0"
+    "ai": "^4.0.0",
+    "dotenv": "^16.3.1"
   }
 }

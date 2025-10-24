@@ -1,0 +1,1022 @@
+{
+  "metadata": {
+    "analysisDate": "2025-10-24T19:14:14.219Z",
+    "questionsAnalyzed": 5,
+    "tokenEstimationMethod": "text.length / 4 (modern) and text.length * 0.35 (legacy)",
+    "description": "Token usage analysis for raw mode benchmark questions"
+  },
+  "summary": {
+    "totalTokensModern": 245321,
+    "totalTokensLegacy": 343450,
+    "averageTokensPerQuestion": 49064,
+    "questions": [
+      {
+        "id": "aggressive-driving",
+        "question": "Tell me about aggressive driving behaviors around campus",
+        "totalTokens": 49057,
+        "totalTokensLegacy": 68688,
+        "requestType": "multi-chunk",
+        "chunkCount": 22
+      },
+      {
+        "id": "dwell-time",
+        "question": "Which parts of campus have the highest dwell time associated with them",
+        "totalTokens": 49149,
+        "totalTokensLegacy": 68803,
+        "requestType": "multi-chunk",
+        "chunkCount": 22
+      },
+      {
+        "id": "moderate-behavior",
+        "question": "How many instances of moderate driving behavior can be found on campus",
+        "totalTokens": 49149,
+        "totalTokensLegacy": 68803,
+        "requestType": "multi-chunk",
+        "chunkCount": 22
+      },
+      {
+        "id": "route-efficiency",
+        "question": "How efficient was the bus route",
+        "totalTokens": 48919,
+        "totalTokensLegacy": 68491,
+        "requestType": "multi-chunk",
+        "chunkCount": 22
+      },
+      {
+        "id": "tech-square-patterns",
+        "question": "What are the driving patterns like around Tech Square",
+        "totalTokens": 49047,
+        "totalTokensLegacy": 68665,
+        "requestType": "multi-chunk",
+        "chunkCount": 22
+      }
+    ]
+  },
+  "detailedResults": [
+    {
+      "questionId": "aggressive-driving",
+      "question": "Tell me about aggressive driving behaviors around campus",
+      "tokenCalculations": [
+        {
+          "type": "chunk-1",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 1 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9271,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3245,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-2",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 2 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9271,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3245,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-3",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 3 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9271,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3245,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-4",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 4 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9271,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3245,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-5",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 5 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9271,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3245,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-6",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 6 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9271,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3245,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-7",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 7 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9271,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3245,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-8",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 8 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9271,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3245,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-9",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 9 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9271,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3245,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-10",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 10 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9272,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3246,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-11",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 11 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9272,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3246,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-12",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 12 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9272,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3246,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-13",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 13 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9272,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3246,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-14",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 14 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9272,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3246,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-15",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 15 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9272,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3246,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-16",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 16 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9272,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3246,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-17",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 17 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9272,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3246,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-18",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 18 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9272,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3246,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-19",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 19 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9272,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3246,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-20",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 20 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9272,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3246,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-21",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 21 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9272,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3246,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-22",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 22 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 507,
+          "estimatedTokens": 127,
+          "estimatedTokensLegacy": 178,
+          "dataSize": 35
+        },
+        {
+          "type": "final-synthesis",
+          "promptText": "You previously reviewed 22 raw telemetry chunks. Combine the analyst notes below into one cohesive answer for the user. Reference the question directly, call out specific patterns or anomalies, and ke...",
+          "promptLength": 1008,
+          "estimatedTokens": 252,
+          "estimatedTokensLegacy": 353,
+          "dataSize": 605
+        }
+      ],
+      "totalTokens": 49057,
+      "totalTokensLegacy": 68688,
+      "chunkCount": 22
+    },
+    {
+      "questionId": "dwell-time",
+      "question": "Which parts of campus have the highest dwell time associated with them",
+      "tokenCalculations": [
+        {
+          "type": "chunk-1",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 1 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9285,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3250,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-2",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 2 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9285,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3250,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-3",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 3 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9285,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3250,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-4",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 4 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9285,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3250,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-5",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 5 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9285,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3250,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-6",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 6 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9285,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3250,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-7",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 7 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9285,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3250,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-8",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 8 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9285,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3250,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-9",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 9 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9285,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3250,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-10",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 10 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9286,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3251,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-11",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 11 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9286,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3251,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-12",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 12 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9286,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3251,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-13",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 13 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9286,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3251,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-14",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 14 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9286,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3251,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-15",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 15 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9286,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3251,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-16",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 16 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9286,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3251,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-17",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 17 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9286,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3251,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-18",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 18 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9286,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3251,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-19",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 19 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9286,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3251,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-20",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 20 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9286,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3251,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-21",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 21 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9286,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3251,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-22",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 22 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 521,
+          "estimatedTokens": 131,
+          "estimatedTokensLegacy": 183,
+          "dataSize": 35
+        },
+        {
+          "type": "final-synthesis",
+          "promptText": "You previously reviewed 22 raw telemetry chunks. Combine the analyst notes below into one cohesive answer for the user. Reference the question directly, call out specific patterns or anomalies, and ke...",
+          "promptLength": 1022,
+          "estimatedTokens": 256,
+          "estimatedTokensLegacy": 358,
+          "dataSize": 605
+        }
+      ],
+      "totalTokens": 49149,
+      "totalTokensLegacy": 68803,
+      "chunkCount": 22
+    },
+    {
+      "questionId": "moderate-behavior",
+      "question": "How many instances of moderate driving behavior can be found on campus",
+      "tokenCalculations": [
+        {
+          "type": "chunk-1",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 1 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9285,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3250,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-2",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 2 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9285,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3250,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-3",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 3 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9285,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3250,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-4",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 4 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9285,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3250,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-5",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 5 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9285,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3250,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-6",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 6 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9285,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3250,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-7",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 7 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9285,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3250,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-8",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 8 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9285,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3250,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-9",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 9 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9285,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3250,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-10",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 10 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9286,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3251,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-11",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 11 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9286,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3251,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-12",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 12 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9286,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3251,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-13",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 13 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9286,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3251,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-14",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 14 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9286,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3251,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-15",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 15 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9286,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3251,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-16",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 16 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9286,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3251,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-17",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 17 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9286,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3251,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-18",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 18 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9286,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3251,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-19",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 19 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9286,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3251,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-20",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 20 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9286,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3251,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-21",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 21 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9286,
+          "estimatedTokens": 2322,
+          "estimatedTokensLegacy": 3251,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-22",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 22 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 521,
+          "estimatedTokens": 131,
+          "estimatedTokensLegacy": 183,
+          "dataSize": 35
+        },
+        {
+          "type": "final-synthesis",
+          "promptText": "You previously reviewed 22 raw telemetry chunks. Combine the analyst notes below into one cohesive answer for the user. Reference the question directly, call out specific patterns or anomalies, and ke...",
+          "promptLength": 1022,
+          "estimatedTokens": 256,
+          "estimatedTokensLegacy": 358,
+          "dataSize": 605
+        }
+      ],
+      "totalTokens": 49149,
+      "totalTokensLegacy": 68803,
+      "chunkCount": 22
+    },
+    {
+      "questionId": "route-efficiency",
+      "question": "How efficient was the bus route",
+      "tokenCalculations": [
+        {
+          "type": "chunk-1",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 1 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9246,
+          "estimatedTokens": 2312,
+          "estimatedTokensLegacy": 3237,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-2",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 2 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9246,
+          "estimatedTokens": 2312,
+          "estimatedTokensLegacy": 3237,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-3",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 3 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9246,
+          "estimatedTokens": 2312,
+          "estimatedTokensLegacy": 3237,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-4",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 4 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9246,
+          "estimatedTokens": 2312,
+          "estimatedTokensLegacy": 3237,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-5",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 5 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9246,
+          "estimatedTokens": 2312,
+          "estimatedTokensLegacy": 3237,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-6",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 6 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9246,
+          "estimatedTokens": 2312,
+          "estimatedTokensLegacy": 3237,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-7",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 7 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9246,
+          "estimatedTokens": 2312,
+          "estimatedTokensLegacy": 3237,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-8",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 8 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9246,
+          "estimatedTokens": 2312,
+          "estimatedTokensLegacy": 3237,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-9",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 9 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9246,
+          "estimatedTokens": 2312,
+          "estimatedTokensLegacy": 3237,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-10",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 10 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9247,
+          "estimatedTokens": 2312,
+          "estimatedTokensLegacy": 3237,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-11",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 11 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9247,
+          "estimatedTokens": 2312,
+          "estimatedTokensLegacy": 3237,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-12",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 12 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9247,
+          "estimatedTokens": 2312,
+          "estimatedTokensLegacy": 3237,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-13",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 13 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9247,
+          "estimatedTokens": 2312,
+          "estimatedTokensLegacy": 3237,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-14",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 14 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9247,
+          "estimatedTokens": 2312,
+          "estimatedTokensLegacy": 3237,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-15",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 15 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9247,
+          "estimatedTokens": 2312,
+          "estimatedTokensLegacy": 3237,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-16",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 16 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9247,
+          "estimatedTokens": 2312,
+          "estimatedTokensLegacy": 3237,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-17",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 17 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9247,
+          "estimatedTokens": 2312,
+          "estimatedTokensLegacy": 3237,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-18",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 18 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9247,
+          "estimatedTokens": 2312,
+          "estimatedTokensLegacy": 3237,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-19",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 19 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9247,
+          "estimatedTokens": 2312,
+          "estimatedTokensLegacy": 3237,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-20",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 20 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9247,
+          "estimatedTokens": 2312,
+          "estimatedTokensLegacy": 3237,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-21",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 21 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9247,
+          "estimatedTokens": 2312,
+          "estimatedTokensLegacy": 3237,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-22",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 22 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 482,
+          "estimatedTokens": 121,
+          "estimatedTokensLegacy": 169,
+          "dataSize": 35
+        },
+        {
+          "type": "final-synthesis",
+          "promptText": "You previously reviewed 22 raw telemetry chunks. Combine the analyst notes below into one cohesive answer for the user. Reference the question directly, call out specific patterns or anomalies, and ke...",
+          "promptLength": 983,
+          "estimatedTokens": 246,
+          "estimatedTokensLegacy": 345,
+          "dataSize": 605
+        }
+      ],
+      "totalTokens": 48919,
+      "totalTokensLegacy": 68491,
+      "chunkCount": 22
+    },
+    {
+      "questionId": "tech-square-patterns",
+      "question": "What are the driving patterns like around Tech Square",
+      "tokenCalculations": [
+        {
+          "type": "chunk-1",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 1 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9268,
+          "estimatedTokens": 2317,
+          "estimatedTokensLegacy": 3244,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-2",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 2 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9268,
+          "estimatedTokens": 2317,
+          "estimatedTokensLegacy": 3244,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-3",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 3 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9268,
+          "estimatedTokens": 2317,
+          "estimatedTokensLegacy": 3244,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-4",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 4 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9268,
+          "estimatedTokens": 2317,
+          "estimatedTokensLegacy": 3244,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-5",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 5 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9268,
+          "estimatedTokens": 2317,
+          "estimatedTokensLegacy": 3244,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-6",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 6 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9268,
+          "estimatedTokens": 2317,
+          "estimatedTokensLegacy": 3244,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-7",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 7 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9268,
+          "estimatedTokens": 2317,
+          "estimatedTokensLegacy": 3244,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-8",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 8 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9268,
+          "estimatedTokens": 2317,
+          "estimatedTokensLegacy": 3244,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-9",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 9 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the user...",
+          "promptLength": 9268,
+          "estimatedTokens": 2317,
+          "estimatedTokensLegacy": 3244,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-10",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 10 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9269,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3245,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-11",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 11 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9269,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3245,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-12",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 12 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9269,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3245,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-13",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 13 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9269,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3245,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-14",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 14 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9269,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3245,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-15",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 15 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9269,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3245,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-16",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 16 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9269,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3245,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-17",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 17 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9269,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3245,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-18",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 18 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9269,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3245,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-19",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 19 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9269,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3245,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-20",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 20 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9269,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3245,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-21",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 21 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 9269,
+          "estimatedTokens": 2318,
+          "estimatedTokensLegacy": 3245,
+          "dataSize": 8800
+        },
+        {
+          "type": "chunk-22",
+          "promptText": "You are a transportation analyst reviewing bus telemetry part 22 of 22. The data is raw JSON with no preprocessing. Extract concrete observations (locations, timestamps, behaviors) relevant to the use...",
+          "promptLength": 504,
+          "estimatedTokens": 126,
+          "estimatedTokensLegacy": 177,
+          "dataSize": 35
+        },
+        {
+          "type": "final-synthesis",
+          "promptText": "You previously reviewed 22 raw telemetry chunks. Combine the analyst notes below into one cohesive answer for the user. Reference the question directly, call out specific patterns or anomalies, and ke...",
+          "promptLength": 1005,
+          "estimatedTokens": 252,
+          "estimatedTokensLegacy": 352,
+          "dataSize": 605
+        }
+      ],
+      "totalTokens": 49047,
+      "totalTokensLegacy": 68665,
+      "chunkCount": 22
+    }
+  ]
+}
