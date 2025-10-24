@@ -410,12 +410,18 @@
         MAX_CHUNKS: 20,
         
         // Minimum delay enforced between ANY consecutive API calls (milliseconds)
-        // Set to 25 seconds (empirically tested to avoid both RPM and TPM limits)
-        MIN_REQUEST_SPACING_MS: 25000
+        // Increased to 40 seconds for ultra-conservative approach to avoid 429 errors
+        MIN_REQUEST_SPACING_MS: 40000
     };
 
     // Track last API call time for rate limiting
     let lastAPICallTime = 0;
+
+    // Reset rate limit tracking (useful between benchmark modes or after errors)
+    function resetRateLimitTimer() {
+        lastAPICallTime = 0;
+        console.log('🔄 Rate limit timer reset');
+    }
 
     async function enforceRateLimit() {
         const now = Date.now();
@@ -868,6 +874,9 @@
         if (!allData.length) {
             throw new Error('No route data has been loaded yet. Zoom or reload the map to fetch telemetry.');
         }
+
+        // Ensure minimum spacing from any previous API calls (e.g., cluster mode benchmark)
+        await enforceRateLimit();
 
         const jsonDataset = JSON.stringify(allData, null, 2);
         if (jsonDataset.length <= RAW_SINGLE_REQUEST_CHAR_LIMIT) {
@@ -2088,6 +2097,11 @@ Begin your narrative now:
                     const clusterResult = await this.testMode(benchmark, 'cluster', run);
                     clusterRuns.push(clusterResult);
                     
+                    // Reset rate limit timer between modes to ensure clean slate
+                    resetRateLimitTimer();
+                    console.log(`⏳ Waiting 60 seconds before raw mode to clear rate limits...`);
+                    await new Promise(resolve => setTimeout(resolve, 60000));
+                    
                     const rawResult = await this.testMode(benchmark, 'raw', run);
                     rawRuns.push(rawResult);
                     
@@ -2462,6 +2476,9 @@ Begin your narrative now:
             throw error;
         }
     };
+
+    // Expose utility functions for manual rate limit management
+    window.resetRateLimitTimer = resetRateLimitTimer;
 
     // Diagnostic function to test API connectivity and rate limits
     window.testAPIConnection = async function() {
