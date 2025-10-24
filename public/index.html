@@ -346,9 +346,9 @@
     };
 
     const RAW_SINGLE_REQUEST_CHAR_LIMIT = 11000;
-    const RAW_MAX_CHUNKS = 30;
+    const RAW_MAX_CHUNKS = 5;
     const TOKENS_PER_CHAR_ESTIMATE = 0.35;       // approximate tokens per character
-    const MAX_INPUT_TOKENS = 4000;               // Reduced from 8000 for llama-3.1-8b-instant (6K TPM limit)
+    const MAX_INPUT_TOKENS = 3000;               // Reduced from 4000 to create lighter, safer chunks
 
     // ============================================================================
     // BENCHMARK INSTRUCTIONS - RUN THESE COMMANDS IN YOUR BROWSER CONSOLE
@@ -602,8 +602,8 @@
         const dataOnlyTokens = JSON.stringify(compressedData.data).length * TOKENS_PER_CHAR_ESTIMATE;
         const tokensPerFeature = dataOnlyTokens / features.length;
         
-        // Step 7: Calculate features per chunk with safety margin (use 80% of available space)
-        const featuresPerChunk = Math.max(1, Math.floor((availableTokensPerChunk * 0.8) / tokensPerFeature));
+        // Step 7: Calculate features per chunk with safety margin (use 60% of available space)
+        const featuresPerChunk = Math.max(1, Math.floor((availableTokensPerChunk * 0.6) / tokensPerFeature));
         
         console.log(`📐 Chunking calculation:`);
         console.log(`   Legend overhead: ~${Math.round(legendOverhead)} tokens`);
@@ -2268,10 +2268,10 @@ Begin your narrative now:
                         ? `${r.raw.cost.mean.toFixed(6)} ± ${r.raw.cost.stdDev.toFixed(6)}`
                         : 'N/A',
                     'Prompt Tokens': r.raw.successCount > 0
-                        ? `${r.raw.promptTokens.mean.toFixed(0)} ± ${r.raw.promptTokens.stdDev.toFixed(0)}`
+                        ? `${r.raw.promptTokens.mean.toFixed(2)} ± ${r.raw.promptTokens.stdDev.toFixed(2)}`
                         : 'N/A',
                     'Response Tokens': r.raw.successCount > 0
-                        ? `${r.raw.responseTokens.mean.toFixed(0)} ± ${r.raw.responseTokens.stdDev.toFixed(0)}`
+                        ? `${r.raw.responseTokens.mean.toFixed(2)} ± ${r.raw.responseTokens.stdDev.toFixed(2)}`
                         : 'N/A',
                     'Runs': `${r.raw.successCount}/${r.raw.runs}`
                 }
