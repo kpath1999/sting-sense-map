@@ -346,7 +346,7 @@
     };
 
     const RAW_SINGLE_REQUEST_CHAR_LIMIT = 11000;
-    const RAW_MAX_CHUNKS = 5;
+    const RAW_MAX_CHUNKS = 30;
     const TOKENS_PER_CHAR_ESTIMATE = 0.35;       // approximate tokens per character
     const MAX_INPUT_TOKENS = 4000;               // Reduced from 8000 for llama-3.1-8b-instant (6K TPM limit)
 
@@ -405,9 +405,9 @@
         RETRY_BASE_DELAY_MS: 15000,
         
         // Maximum chunks to process in raw mode
-        // Increased to 20 to maximize data coverage
+        // Increased to 30 to handle 1,219 records with 4K token chunks (~25-26 chunks needed)
         // Trade-off: More API calls = longer processing time but fuller dataset analysis
-        MAX_CHUNKS: 20,
+        MAX_CHUNKS: 30,
         
         // Minimum delay enforced between ANY consecutive API calls (milliseconds)
         // Increased to 40 seconds for ultra-conservative approach to avoid 429 errors
@@ -591,11 +591,27 @@
             };
         }
         
-        // Step 4: Calculate how many features per chunk
-        const tokensPerFeature = estimatedTokens / features.length;
-        const featuresPerChunk = Math.floor(MAX_INPUT_TOKENS / tokensPerFeature);
+        // Step 4: Calculate legend overhead (it's included in every chunk)
+        const sampleChunk = compressDataset([features[0]]);
+        const legendOverhead = JSON.stringify({ legend: sampleChunk.legend }).length * TOKENS_PER_CHAR_ESTIMATE;
         
-        // Step 5: Split the dataset into appropriately sized chunks
+        // Step 5: Calculate tokens available for actual data (after accounting for legend + JSON structure)
+        const availableTokensPerChunk = MAX_INPUT_TOKENS - legendOverhead - 100; // 100 token safety margin
+        
+        // Step 6: Estimate tokens per feature (from the data array only, not legend)
+        const dataOnlyTokens = JSON.stringify(compressedData.data).length * TOKENS_PER_CHAR_ESTIMATE;
+        const tokensPerFeature = dataOnlyTokens / features.length;
+        
+        // Step 7: Calculate features per chunk with safety margin (use 80% of available space)
+        const featuresPerChunk = Math.max(1, Math.floor((availableTokensPerChunk * 0.8) / tokensPerFeature));
+        
+        console.log(`📐 Chunking calculation:`);
+        console.log(`   Legend overhead: ~${Math.round(legendOverhead)} tokens`);
+        console.log(`   Tokens per feature: ~${tokensPerFeature.toFixed(1)} tokens`);
+        console.log(`   Features per chunk: ${featuresPerChunk}`);
+        console.log(`   Target chunk size: ~${Math.round(availableTokensPerChunk * 0.8)} tokens`);
+        
+        // Step 8: Split the dataset into chunks
         const result = [];
         let startIndex = 0;
         let processed = 0;
@@ -605,16 +621,39 @@
             const chunkFeatures = features.slice(startIndex, endIndex + 1);
             const chunkData = compressDataset(chunkFeatures);
             const chunkString = JSON.stringify(chunkData);
+            const chunkTokens = chunkString.length * TOKENS_PER_CHAR_ESTIMATE;
             
-            result.push({
-                data: chunkData,
-                startIndex,
-                endIndex,
-                estimatedTokens: chunkString.length * TOKENS_PER_CHAR_ESTIMATE
-            });
-            
-            processed = endIndex + 1;
-            startIndex = endIndex + 1;
+            // Verify chunk is not too large
+            if (chunkTokens > MAX_INPUT_TOKENS) {
+                console.warn(`⚠️ Chunk would be ${Math.round(chunkTokens)} tokens, reducing features...`);
+                // Retry with fewer features
+                const reducedFeaturesPerChunk = Math.floor(featuresPerChunk * 0.7);
+                const reducedEndIndex = Math.min(startIndex + reducedFeaturesPerChunk - 1, features.length - 1);
+                const reducedChunkFeatures = features.slice(startIndex, reducedEndIndex + 1);
+                const reducedChunkData = compressDataset(reducedChunkFeatures);
+                const reducedChunkString = JSON.stringify(reducedChunkData);
+                const reducedChunkTokens = reducedChunkString.length * TOKENS_PER_CHAR_ESTIMATE;
+                
+                result.push({
+                    data: reducedChunkData,
+                    startIndex,
+                    endIndex: reducedEndIndex,
+                    estimatedTokens: reducedChunkTokens
+                });
+                
+                processed = reducedEndIndex + 1;
+                startIndex = reducedEndIndex + 1;
+            } else {
+                result.push({
+                    data: chunkData,
+                    startIndex,
+                    endIndex,
+                    estimatedTokens: chunkTokens
+                });
+                
+                processed = endIndex + 1;
+                startIndex = endIndex + 1;
+            }
             
             // Safety check to prevent infinite loops and respect max chunks
             if (result.length >= RATE_LIMIT_CONFIG.MAX_CHUNKS) {
@@ -2588,12 +2627,12 @@ Begin your narrative now:
             console.log("💡 Only modify if you experience different rate limit behavior.");
             console.log("\nTo modify: configureRateLimits({ CHUNK_DELAY_MS: 15000 })");
             console.log("\nAvailable settings:");
-            console.log("  CHUNK_DELAY_MS: delay between chunks (current: 13000ms = 13s)");
-            console.log("  FINAL_DELAY_MS: delay before final synthesis (current: 13000ms = 13s)");
-            console.log("  MAX_RETRIES: retry attempts on failure (current: 3)");
-            console.log("  RETRY_BASE_DELAY_MS: base retry delay (current: 15000ms = 15s)");
-            console.log("  MAX_CHUNKS: max chunks to process (current: 8)");
-            console.log("  MIN_REQUEST_SPACING_MS: min time between any requests (current: 12000ms = 12s)");
+            console.log(`  CHUNK_DELAY_MS: delay between chunks (current: ${RATE_LIMIT_CONFIG.CHUNK_DELAY_MS}ms = ${RATE_LIMIT_CONFIG.CHUNK_DELAY_MS/1000}s)`);
+            console.log(`  FINAL_DELAY_MS: delay before final synthesis (current: ${RATE_LIMIT_CONFIG.FINAL_DELAY_MS}ms = ${RATE_LIMIT_CONFIG.FINAL_DELAY_MS/1000}s)`);
+            console.log(`  MAX_RETRIES: retry attempts on failure (current: ${RATE_LIMIT_CONFIG.MAX_RETRIES})`);
+            console.log(`  RETRY_BASE_DELAY_MS: base retry delay (current: ${RATE_LIMIT_CONFIG.RETRY_BASE_DELAY_MS}ms = ${RATE_LIMIT_CONFIG.RETRY_BASE_DELAY_MS/1000}s)`);
+            console.log(`  MAX_CHUNKS: max chunks to process (current: ${RATE_LIMIT_CONFIG.MAX_CHUNKS})`);
+            console.log(`  MIN_REQUEST_SPACING_MS: min time between any requests (current: ${RATE_LIMIT_CONFIG.MIN_REQUEST_SPACING_MS}ms = ${RATE_LIMIT_CONFIG.MIN_REQUEST_SPACING_MS/1000}s)`);
             return RATE_LIMIT_CONFIG;
         }
         
@@ -2678,12 +2717,12 @@ Begin your narrative now:
     console.log("   • Model: llama-3.1-8b-instant (6K TPM limit)");
     console.log("   • Chunk size: 4K tokens (reduced from 8K for safety)");
     console.log("   • Rate limits: 30-40 second spacing (conservative for TPM)");
-    console.log("   • Max chunks: 20 (increased for full dataset coverage)");
+    console.log("   • Max chunks: 30 (handles 1,219 records with ~25-26 chunks)");
     console.log("   • Questions: 5 representative queries");
     console.log("\n🎯 Benchmark Options:");
-    console.log("   runBenchmark(1)  → Quick test (1 run, ~15-20 min)");
-    console.log("   runBenchmark(3)  → Standard test (3 runs, ~45-60 min)");
-    console.log("   runBenchmark(5)  → Publication quality (5 runs, ~75-100 min) ⭐");
+    console.log("   runBenchmark(1)  → Quick test (1 run, ~25-30 min)");
+    console.log("   runBenchmark(3)  → Standard test (3 runs, ~75-90 min)");
+    console.log("   runBenchmark(5)  → Publication quality (5 runs, ~125-150 min / 2-2.5 hrs) ⭐");
     console.log("\n� Diagnostic Tools:");
     console.log("   checkDataCoverage()    → Check if raw mode processes full dataset");
     console.log("   estimateRawModeCalls() → Estimate time for raw mode query");
