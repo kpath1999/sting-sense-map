@@ -382,18 +382,19 @@
 
     // ============================================================================
     // RATE LIMITING CONFIGURATION
-    // Based on empirical testing: API rate limits are hit when calls are made
-    // within 9 seconds of each other. Safe range is 12-15 seconds between calls.
+    // Based on empirical testing: API has BOTH RPM (Requests Per Minute) and TPM (Tokens Per Minute) limits.
+    // TPM limit was hit on chunk 7/8 even with 20s delays, indicating TPM accumulates over 60s sliding window.
+    // Conservative settings: 30s delays ensure we stay well under both RPM and TPM limits.
     // These settings apply to both live webpage queries and benchmark runs.
     // ============================================================================
     const RATE_LIMIT_CONFIG = {
         // Delay between chunk processing (milliseconds)
-        // Set to 13 seconds based on empirical testing (12-15s safe range)
-        CHUNK_DELAY_MS: 13000,
+        // Set to 30 seconds to avoid TPM (Tokens Per Minute) limit violations
+        CHUNK_DELAY_MS: 30000,
         
         // Delay before final synthesis call (milliseconds)
         // Must be at least as long as CHUNK_DELAY_MS for consistency
-        FINAL_DELAY_MS: 13000,
+        FINAL_DELAY_MS: 30000,
         
         // Maximum number of retry attempts when rate limited
         // More retries = more resilient, but slower on failure
@@ -409,8 +410,8 @@
         MAX_CHUNKS: 20,
         
         // Minimum delay enforced between ANY consecutive API calls (milliseconds)
-        // Set to 12 seconds (lower bound of safe range)
-        MIN_REQUEST_SPACING_MS: 12000
+        // Set to 25 seconds (empirically tested to avoid both RPM and TPM limits)
+        MIN_REQUEST_SPACING_MS: 25000
     };
 
     // Track last API call time for rate limiting
