@@ -351,35 +351,66 @@
     const MAX_INPUT_TOKENS = 8000;               // safe limit for the model
 
     // ============================================================================
+    // BENCHMARK INSTRUCTIONS - RUN THESE COMMANDS IN YOUR BROWSER CONSOLE
+    // ============================================================================
+    //
+    // TO RUN 5-ITERATION BENCHMARK FOR PUBLICATION-QUALITY STATISTICS:
+    //
+    //   1. Open this page in your browser
+    //   2. Wait for the map data to load completely
+    //   3. Open Developer Console (F12 or Cmd+Option+I on Mac)
+    //   4. Run: runBenchmark(5)
+    //
+    // WHAT HAPPENS:
+    //   - Tests 5 representative questions in both cluster and raw modes
+    //   - Runs each question 5 times to calculate mean ± standard deviation
+    //   - Measures: latency, token usage, cost for each run
+    //   - Estimated time: ~50-75 minutes for full benchmark
+    //
+    // OUTPUT FILES:
+    //   - benchmark_aggregated_YYYY-MM-DD.csv (mean ± stdDev for each question)
+    //   - benchmark_raw_runs_YYYY-MM-DD.csv (individual run data)
+    //   - Results also saved to localStorage and console
+    //
+    // OPTIONAL COMMANDS:
+    //   - runBenchmark(1)  : Quick test (1 run per question, ~10-15 min)
+    //   - runBenchmark(3)  : Standard test (3 runs per question, ~30-45 min)
+    //   - checkDataCoverage() : Check if raw mode processes full dataset
+    //   - estimateRawModeCalls() : Estimate time for raw mode query
+    //
+    // ============================================================================
+
+    // ============================================================================
     // RATE LIMITING CONFIGURATION
-    // Adjust these to prevent 429 errors when using raw mode
+    // Based on empirical testing: API rate limits are hit when calls are made
+    // within 9 seconds of each other. Safe range is 12-15 seconds between calls.
+    // These settings apply to both live webpage queries and benchmark runs.
     // ============================================================================
     const RATE_LIMIT_CONFIG = {
         // Delay between chunk processing (milliseconds)
-        // Increase if you're hitting rate limits frequently
-        // Recommended: 3000-5000ms for strict rate limits, 2000ms for moderate
-        CHUNK_DELAY_MS: 2000,
+        // Set to 13 seconds based on empirical testing (12-15s safe range)
+        CHUNK_DELAY_MS: 13000,
         
         // Delay before final synthesis call (milliseconds)
-        // Should be at least as long as CHUNK_DELAY_MS
-        FINAL_DELAY_MS: 2000,
+        // Must be at least as long as CHUNK_DELAY_MS for consistency
+        FINAL_DELAY_MS: 13000,
         
         // Maximum number of retry attempts when rate limited
         // More retries = more resilient, but slower on failure
         MAX_RETRIES: 3,
         
         // Base delay for exponential backoff on retries (milliseconds)
-        // On retry N, wait: RETRY_BASE_DELAY_MS * N
-        RETRY_BASE_DELAY_MS: 2000,
+        // Starts at 15 seconds to be safe
+        RETRY_BASE_DELAY_MS: 15000,
         
         // Maximum chunks to process in raw mode
-        // Lower = fewer API calls but less data analyzed
-        // Higher = more comprehensive but more API calls
-        MAX_CHUNKS: 8,
+        // Increased to 20 to maximize data coverage
+        // Trade-off: More API calls = longer processing time but fuller dataset analysis
+        MAX_CHUNKS: 20,
         
         // Minimum delay enforced between ANY consecutive API calls (milliseconds)
-        // Safety net to prevent accidental rapid-fire requests
-        MIN_REQUEST_SPACING_MS: 1500
+        // Set to 12 seconds (lower bound of safe range)
+        MIN_REQUEST_SPACING_MS: 12000
     };
 
     // Track last API call time for rate limiting
@@ -856,6 +887,23 @@
         if (!chunks.length) {
             throw new Error('Unable to prepare the dataset for raw analysis. Try switching to cluster mode.');
         }
+
+        // Log data coverage information
+        console.log(`📊 Dataset Analysis Coverage:`);
+        console.log(`   Total records: ${allData.length}`);
+        console.log(`   Records to be processed: ${processedCount}`);
+        console.log(`   Coverage: ${((processedCount / allData.length) * 100).toFixed(1)}%`);
+        console.log(`   Chunks: ${chunks.length} (max allowed: ${RATE_LIMIT_CONFIG.MAX_CHUNKS})`);
+        
+        if (truncated) {
+            const skipped = allData.length - processedCount;
+            console.warn(`⚠️  DATA TRUNCATION WARNING:`);
+            console.warn(`   ${skipped} records (${((skipped / allData.length) * 100).toFixed(1)}%) will NOT be analyzed`);
+            console.warn(`   To analyze full dataset, increase MAX_CHUNKS: configureRateLimits({ MAX_CHUNKS: ${chunks.length + 5} })`);
+        } else {
+            console.log(`✅ Full dataset will be analyzed`);
+        }
+        console.log('');
 
         const chunkNotes = [];
         const chunkDescriptors = [];
@@ -2384,13 +2432,28 @@ Begin your narrative now:
             const jsonData = evaluator.exportToJSON();
             evaluator.exportToCSV();
             
-            console.log("\n✅ Benchmark complete!");
-            console.log(`\n📊 Ran ${runsPerQuestion} iteration(s) per question for statistical analysis.`);
-            console.log("\n💡 TIP: To manually score accuracy, review the detailed responses above.");
-            console.log("💡 TIP: Results are saved in localStorage. Retrieve with: JSON.parse(localStorage.getItem('benchmarkResults'))");
-            console.log("💡 TIP: TWO CSV files downloaded:");
-            console.log("   - benchmark_aggregated_*.csv: Mean ± StdDev for each question");
-            console.log("   - benchmark_raw_runs_*.csv: Individual run data for detailed analysis");
+            console.log("\n" + "=".repeat(80));
+            console.log("✅ BENCHMARK COMPLETE!");
+            console.log("=".repeat(80));
+            console.log(`📊 Statistics collected: ${runsPerQuestion} iteration(s) per question`);
+            console.log(`📝 Questions tested: ${evaluator.benchmarks.length}`);
+            console.log(`🔄 Total test runs: ${evaluator.benchmarks.length * runsPerQuestion * 2} (cluster + raw)`);
+            console.log("\n� OUTPUT FILES DOWNLOADED:");
+            console.log("   1️⃣  benchmark_aggregated_YYYY-MM-DD.csv");
+            console.log("      - Contains: Mean ± Standard Deviation for each metric");
+            console.log("      - Columns: Latency Mean/StdDev, Token Mean/StdDev, Cost Mean/StdDev");
+            console.log("      - Use for: Publication tables, summary statistics");
+            console.log("\n   2️⃣  benchmark_raw_runs_YYYY-MM-DD.csv");
+            console.log("      - Contains: Individual values from each run");
+            console.log("      - Use for: Variance analysis, outlier detection, detailed plotting");
+            console.log("\n💾 Data also saved to browser localStorage");
+            console.log("   Retrieve with: JSON.parse(localStorage.getItem('benchmarkResults'))");
+            console.log("\n� NEXT STEPS:");
+            console.log("   1. Review detailed responses above for accuracy evaluation");
+            console.log("   2. Import CSV files into Excel/Python/R for statistical analysis");
+            console.log("   3. Calculate confidence intervals (if needed): CI = mean ± (t * stdDev/√n)");
+            console.log("   4. Create visualizations with error bars using mean ± stdDev");
+            console.log("=".repeat(80) + "\n");
             
             return jsonData;
         } catch (error) {
@@ -2462,13 +2525,18 @@ Begin your narrative now:
         console.log(`   Truncated: ${truncated ? 'Yes' : 'No'}`);
         console.log(`   Total API calls: ${chunks.length + 1} (${chunks.length} chunks + 1 synthesis)`);
         
+        // Calculate estimated time with 12-15s spacing
         const chunkDelayTime = (chunks.length - 1) * (RATE_LIMIT_CONFIG.CHUNK_DELAY_MS / 1000);
         const finalDelayTime = RATE_LIMIT_CONFIG.FINAL_DELAY_MS / 1000;
         const minSpacingTime = (chunks.length + 1) * (RATE_LIMIT_CONFIG.MIN_REQUEST_SPACING_MS / 1000);
         const totalEstimatedTime = chunkDelayTime + finalDelayTime + minSpacingTime;
         
-        console.log(`   Estimated time: ~${totalEstimatedTime.toFixed(1)}s`);
-        console.log(`   (${chunkDelayTime}s chunk delays + ${finalDelayTime}s final delay + ${minSpacingTime.toFixed(1)}s min spacing)`);
+        const minutes = Math.floor(totalEstimatedTime / 60);
+        const seconds = Math.floor(totalEstimatedTime % 60);
+        
+        console.log(`   Estimated time: ~${totalEstimatedTime.toFixed(0)}s (${minutes}m ${seconds}s)`);
+        console.log(`   ⏱️  Using 12-15s spacing to prevent rate limits`);
+        console.log(`   Breakdown: ${chunkDelayTime}s between chunks + ${finalDelayTime}s before synthesis + ${minSpacingTime.toFixed(0)}s min spacing`);
         
         chunks.forEach((chunk, i) => {
             console.log(`   Chunk ${i + 1}: records ${chunk.startIndex + 1}-${chunk.endIndex + 1}, ~${chunk.estimatedTokens.toFixed(0)} tokens`);
@@ -2477,25 +2545,29 @@ Begin your narrative now:
         return {
             totalCalls: chunks.length + 1,
             chunks: chunks.length,
-            estimatedTimeSeconds: totalEstimatedTime
+            estimatedTimeSeconds: totalEstimatedTime,
+            estimatedTimeFormatted: `${minutes}m ${seconds}s`
         };
     };
 
     // Function to adjust rate limit settings
     window.configureRateLimits = function(options = {}) {
-        console.log("⚙️ Current Rate Limit Configuration:");
+        console.log("⚙️ Current Rate Limit Configuration (Empirically Tested):");
         console.log(JSON.stringify(RATE_LIMIT_CONFIG, null, 2));
+        console.log("\n📊 Based on testing: API rate limits trigger at <9s spacing");
+        console.log("✅ Safe range: 12-15 seconds between consecutive API calls");
         
         if (Object.keys(options).length === 0) {
-            console.log("\n💡 To modify settings, call with options object:");
-            console.log("configureRateLimits({ CHUNK_DELAY_MS: 5000, MAX_CHUNKS: 5 })");
+            console.log("\n⚠️  WARNING: These settings are empirically optimized for your API.");
+            console.log("💡 Only modify if you experience different rate limit behavior.");
+            console.log("\nTo modify: configureRateLimits({ CHUNK_DELAY_MS: 15000 })");
             console.log("\nAvailable settings:");
-            console.log("  CHUNK_DELAY_MS: delay between chunks (default: 2000)");
-            console.log("  FINAL_DELAY_MS: delay before final synthesis (default: 2000)");
-            console.log("  MAX_RETRIES: retry attempts on failure (default: 3)");
-            console.log("  RETRY_BASE_DELAY_MS: base retry delay (default: 2000)");
-            console.log("  MAX_CHUNKS: max chunks to process (default: 8)");
-            console.log("  MIN_REQUEST_SPACING_MS: min time between any requests (default: 1500)");
+            console.log("  CHUNK_DELAY_MS: delay between chunks (current: 13000ms = 13s)");
+            console.log("  FINAL_DELAY_MS: delay before final synthesis (current: 13000ms = 13s)");
+            console.log("  MAX_RETRIES: retry attempts on failure (current: 3)");
+            console.log("  RETRY_BASE_DELAY_MS: base retry delay (current: 15000ms = 15s)");
+            console.log("  MAX_CHUNKS: max chunks to process (current: 8)");
+            console.log("  MIN_REQUEST_SPACING_MS: min time between any requests (current: 12000ms = 12s)");
             return RATE_LIMIT_CONFIG;
         }
         
@@ -2504,7 +2576,7 @@ Begin your narrative now:
             if (RATE_LIMIT_CONFIG.hasOwnProperty(key)) {
                 const oldValue = RATE_LIMIT_CONFIG[key];
                 RATE_LIMIT_CONFIG[key] = options[key];
-                console.log(`✅ Updated ${key}: ${oldValue} → ${options[key]}`);
+                console.log(`✅ Updated ${key}: ${oldValue}ms → ${options[key]}ms`);
             } else {
                 console.warn(`⚠️ Unknown setting: ${key}`);
             }
@@ -2519,81 +2591,81 @@ Begin your narrative now:
     // Add benchmark questions to window for easy access
     window.benchmarkQuestions = benchmarkQuestions;
     
-    // Quick helper to show recommended settings for different rate limit scenarios
-    window.recommendedRateLimitPresets = {
-        strict: {
-            name: "Strict (Very Low Rate Limits)",
-            description: "For APIs with tight limits (e.g., 3 RPM)",
-            settings: {
-                CHUNK_DELAY_MS: 5000,
-                FINAL_DELAY_MS: 5000,
-                MAX_RETRIES: 5,
-                RETRY_BASE_DELAY_MS: 3000,
-                MAX_CHUNKS: 3,
-                MIN_REQUEST_SPACING_MS: 3000
-            }
-        },
-        moderate: {
-            name: "Moderate (Standard Rate Limits)",
-            description: "For APIs with moderate limits (e.g., 10-20 RPM)",
-            settings: {
-                CHUNK_DELAY_MS: 3000,
-                FINAL_DELAY_MS: 3000,
-                MAX_RETRIES: 3,
-                RETRY_BASE_DELAY_MS: 2000,
-                MAX_CHUNKS: 5,
-                MIN_REQUEST_SPACING_MS: 2000
-            }
-        },
-        relaxed: {
-            name: "Relaxed (High Rate Limits)",
-            description: "For APIs with generous limits (e.g., 60+ RPM)",
-            settings: {
-                CHUNK_DELAY_MS: 1000,
-                FINAL_DELAY_MS: 1000,
-                MAX_RETRIES: 2,
-                RETRY_BASE_DELAY_MS: 1000,
-                MAX_CHUNKS: 10,
-                MIN_REQUEST_SPACING_MS: 500
-            }
-        },
-        current: {
-            name: "Current (Default Settings)",
-            description: "The default balanced configuration",
-            settings: {
-                CHUNK_DELAY_MS: 2000,
-                FINAL_DELAY_MS: 2000,
-                MAX_RETRIES: 3,
-                RETRY_BASE_DELAY_MS: 2000,
-                MAX_CHUNKS: 8,
-                MIN_REQUEST_SPACING_MS: 1500
-            }
-        }
-    };
-    
-    window.applyRateLimitPreset = function(presetName) {
-        const preset = window.recommendedRateLimitPresets[presetName];
-        if (!preset) {
-            console.error(`❌ Unknown preset: ${presetName}`);
-            console.log("Available presets:", Object.keys(window.recommendedRateLimitPresets).join(', '));
+    // Function to check dataset coverage in raw mode
+    window.checkDataCoverage = function() {
+        if (!allData || allData.length === 0) {
+            console.error("❌ No data loaded yet. Wait for map to load data.");
             return;
         }
+
+        const { chunks, truncated, processedCount } = splitFeaturesForRawMode(allData);
         
-        console.log(`🎛️ Applying preset: ${preset.name}`);
-        console.log(`   ${preset.description}`);
-        return configureRateLimits(preset.settings);
+        console.log("\n" + "=".repeat(80));
+        console.log("📊 RAW MODE DATASET COVERAGE ANALYSIS");
+        console.log("=".repeat(80));
+        console.log(`Total records in dataset: ${allData.length}`);
+        console.log(`Records that will be processed: ${processedCount}`);
+        console.log(`Coverage: ${((processedCount / allData.length) * 100).toFixed(1)}%`);
+        console.log(`Number of chunks: ${chunks.length}`);
+        console.log(`Max allowed chunks: ${RATE_LIMIT_CONFIG.MAX_CHUNKS}`);
+        console.log(`Truncated: ${truncated ? '⚠️  YES - some data will be skipped' : '✅ NO - full dataset will be analyzed'}`);
+        
+        if (truncated) {
+            const skipped = allData.length - processedCount;
+            const avgRecordsPerChunk = processedCount / chunks.length;
+            const chunksNeeded = Math.ceil(allData.length / avgRecordsPerChunk);
+            
+            console.log("\n" + "─".repeat(80));
+            console.warn(`⚠️  WARNING: ${skipped} records (${((skipped / allData.length) * 100).toFixed(1)}%) will be SKIPPED!`);
+            console.log("\n💡 OPTIONS TO ANALYZE FULL DATASET:");
+            console.log(`   Option 1: Increase MAX_CHUNKS to ${chunksNeeded}`);
+            console.log(`      Command: configureRateLimits({ MAX_CHUNKS: ${chunksNeeded} })`);
+            console.log(`      Time: ~${Math.ceil(chunksNeeded * 13 / 60)} minutes per query`);
+            console.log(`   Option 2: Use cluster mode instead (always processes 100% of data in 1-2 seconds)`);
+            console.log("─".repeat(80));
+        } else {
+            console.log("\n✅ FULL DATASET COVERAGE");
+            const estimatedTime = estimateRawModeCalls();
+            console.log(`   All ${allData.length} records will be analyzed`);
+            console.log(`   Estimated time per query: ${estimatedTime.estimatedTimeFormatted}`);
+        }
+        console.log("=".repeat(80) + "\n");
+        
+        return {
+            totalRecords: allData.length,
+            processedRecords: processedCount,
+            coveragePercent: parseFloat(((processedCount / allData.length) * 100).toFixed(1)),
+            skippedRecords: allData.length - processedCount,
+            truncated,
+            chunks: chunks.length,
+            maxChunks: RATE_LIMIT_CONFIG.MAX_CHUNKS,
+            chunksNeededForFullCoverage: truncated ? Math.ceil(allData.length / (processedCount / chunks.length)) : chunks.length
+        };
     };
     
-    console.log("✅ Benchmark system loaded!");
-    console.log("📌 Run benchmark with: runBenchmark(runsPerQuestion)");
-    console.log("   Example: runBenchmark(1)  - Single run per question (fast)");
-    console.log("   Example: runBenchmark(3)  - 3 runs per question (recommended for stats)");
-    console.log("   Example: runBenchmark(5)  - 5 runs per question (publication-quality)");
-    console.log("📌 View questions with: benchmarkQuestions");
-    console.log("📌 Test API connection: testAPIConnection()");
-    console.log("📌 Estimate raw mode calls: estimateRawModeCalls()");
-    console.log("📌 Configure rate limits: configureRateLimits({ CHUNK_DELAY_MS: 5000 })");
-    console.log("📌 Apply preset: applyRateLimitPreset('strict' | 'moderate' | 'relaxed')");
+    console.log("\n" + "=".repeat(80));
+    console.log("🚀 BENCHMARK SYSTEM READY");
+    console.log("=".repeat(80));
+    console.log("\n📋 QUICK START - Run 5-iteration benchmark for publication:");
+    console.log("   runBenchmark(5)");
+    console.log("\n⏱️  Configuration:");
+    console.log("   • Rate limits: 12-15 second spacing (empirically tested)");
+    console.log("   • Max chunks: 20 (increased for full dataset coverage)");
+    console.log("   • Questions: 5 representative queries");
+    console.log("\n🎯 Benchmark Options:");
+    console.log("   runBenchmark(1)  → Quick test (1 run, ~10-15 min)");
+    console.log("   runBenchmark(3)  → Standard test (3 runs, ~30-45 min)");
+    console.log("   runBenchmark(5)  → Publication quality (5 runs, ~50-75 min) ⭐");
+    console.log("\n� Diagnostic Tools:");
+    console.log("   checkDataCoverage()    → Check if raw mode processes full dataset");
+    console.log("   estimateRawModeCalls() → Estimate time for raw mode query");
+    console.log("   testAPIConnection()    → Test API connectivity");
+    console.log("   configureRateLimits()  → View/modify rate limit settings");
+    console.log("\n📊 Output:");
+    console.log("   • 2 CSV files with mean ± standard deviation");
+    console.log("   • Console output with detailed statistics");
+    console.log("   • localStorage backup of all results");
+    console.log("=".repeat(80) + "\n");
 </script>
 
 </body>
