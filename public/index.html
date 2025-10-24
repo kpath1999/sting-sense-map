@@ -1948,9 +1948,11 @@ Begin your narrative now:
     ];
 
     class ContextModeEvaluator {
-        constructor(questions) {
+        constructor(questions, runsPerQuestion = 1) {
             this.benchmarks = questions;
+            this.runsPerQuestion = runsPerQuestion;
             this.results = [];
+            this.rawRunData = []; // Store all individual runs for statistical analysis
         }
 
         estimateTokens(text) {
@@ -1960,9 +1962,21 @@ Begin your narrative now:
 
         calculateCost(promptTokens, responseTokens) {
             // Adjust these rates based on your actual LLM pricing
-            const promptCost = (promptTokens / 1_000_000) * 0.50;  // $0.50 per 1M input tokens
-            const responseCost = (responseTokens / 1_000_000) * 1.50; // $1.50 per 1M output tokens
+            const promptCost = (promptTokens / 1_000_000) * 0.11;  // $0.11 per 1M input tokens
+            const responseCost = (responseTokens / 1_000_000) * 0.34; // $0.34 per 1M output tokens
             return promptCost + responseCost;
+        }
+
+        calculateStats(values) {
+            if (values.length === 0) return { mean: 0, stdDev: 0, min: 0, max: 0 };
+            
+            const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
+            const variance = values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length;
+            const stdDev = Math.sqrt(variance);
+            const min = Math.min(...values);
+            const max = Math.max(...values);
+            
+            return { mean, stdDev, min, max };
         }
 
         async testMode(benchmark, mode) {
@@ -2005,7 +2019,8 @@ Begin your narrative now:
 
         async run() {
             console.log("🚀 Starting Context Mode Benchmark Evaluation");
-            console.log(`📊 Testing ${this.benchmarks.length} questions in both modes\n`);
+            console.log(`📊 Testing ${this.benchmarks.length} questions in both modes`);
+            console.log(`🔁 Running ${this.runsPerQuestion} iterations per question\n`);
             
             const allResults = [];
             
@@ -2013,19 +2028,51 @@ Begin your narrative now:
                 const benchmark = this.benchmarks[i];
                 console.log(`\n[${i + 1}/${this.benchmarks.length}] "${benchmark.question}"`);
                 
-                const clusterResult = await this.testMode(benchmark, 'cluster');
-                const rawResult = await this.testMode(benchmark, 'raw');
+                // Arrays to collect multiple runs for each mode
+                const clusterRuns = [];
+                const rawRuns = [];
+                
+                // Run multiple iterations
+                for (let run = 1; run <= this.runsPerQuestion; run++) {
+                    console.log(`  Run ${run}/${this.runsPerQuestion}...`);
+                    
+                    const clusterResult = await this.testMode(benchmark, 'cluster', run);
+                    clusterRuns.push(clusterResult);
+                    
+                    const rawResult = await this.testMode(benchmark, 'raw', run);
+                    rawRuns.push(rawResult);
+                    
+                    // Store individual runs for detailed analysis
+                    this.rawRunData.push({
+                        questionId: benchmark.id,
+                        question: benchmark.question,
+                        run: run,
+                        cluster: clusterResult,
+                        raw: rawResult,
+                        timestamp: new Date().toISOString()
+                    });
+                    
+                    // Brief pause between runs
+                    if (run < this.runsPerQuestion) {
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                    }
+                }
+                
+                // Calculate statistics across all runs
+                const clusterStats = this.calculateRunStatistics(clusterRuns);
+                const rawStats = this.calculateRunStatistics(rawRuns);
                 
                 allResults.push({
                     questionId: benchmark.id,
                     question: benchmark.question,
                     groundTruth: benchmark.groundTruth,
-                    cluster: clusterResult,
-                    raw: rawResult,
+                    cluster: clusterStats,
+                    raw: rawStats,
+                    runsPerQuestion: this.runsPerQuestion,
                     timestamp: new Date().toISOString()
                 });
                 
-                // Brief pause between questions to avoid overwhelming the API
+                // Pause between questions to avoid overwhelming the API
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
             
@@ -2033,73 +2080,139 @@ Begin your narrative now:
             return allResults;
         }
 
+        calculateRunStatistics(runs) {
+            const successful = runs.filter(r => !r.error);
+            
+            if (successful.length === 0) {
+                return {
+                    runs: runs.length,
+                    successCount: 0,
+                    errors: runs.map(r => r.error).filter(Boolean),
+                    latency: { mean: 0, stdDev: 0, min: 0, max: 0 },
+                    promptTokens: { mean: 0, stdDev: 0, min: 0, max: 0 },
+                    responseTokens: { mean: 0, stdDev: 0, min: 0, max: 0 },
+                    totalTokens: { mean: 0, stdDev: 0, min: 0, max: 0 },
+                    cost: { mean: 0, stdDev: 0, min: 0, max: 0 }
+                };
+            }
+            
+            // Extract values for statistics
+            const latencies = successful.map(r => r.latencyMs / 1000); // Convert to seconds
+            const promptTokens = successful.map(r => r.promptTokens);
+            const responseTokens = successful.map(r => r.responseTokens);
+            const totalTokens = successful.map(r => r.totalTokens);
+            const costs = successful.map(r => r.costUSD);
+            
+            // Get a representative response (from first successful run)
+            const representativeResponse = successful[0].response;
+            const representativeDataSummary = successful[0].dataSummary;
+            const groundTruth = successful[0].groundTruth;
+            
+            return {
+                runs: runs.length,
+                successCount: successful.length,
+                errors: runs.filter(r => r.error).map(r => r.error),
+                latency: this.calculateStats(latencies),
+                promptTokens: this.calculateStats(promptTokens),
+                responseTokens: this.calculateStats(responseTokens),
+                totalTokens: this.calculateStats(totalTokens),
+                cost: this.calculateStats(costs),
+                representativeResponse,
+                representativeDataSummary,
+                groundTruth
+            };
+        }
+
         displayResultsSummary() {
             console.log("\n" + "=".repeat(80));
             console.log("📈 BENCHMARK RESULTS SUMMARY");
+            console.log(`Runs per question: ${this.runsPerQuestion}`);
             console.log("=".repeat(80) + "\n");
 
-            // Create comparison table
+            // Create comparison table with mean ± stdDev
             const tableData = this.results.flatMap(r => [
                 {
-                    Question: r.question.substring(0, 50) + "...",
+                    Question: r.question.substring(0, 40) + "...",
                     Mode: 'Cluster',
-                    'Latency (s)': r.cluster.error ? 'FAIL' : r.cluster.latencySec,
-                    'Est. Cost ($)': r.cluster.error ? 'N/A' : r.cluster.costUSD.toFixed(6),
-                    'Prompt Tokens': r.cluster.promptTokens || 'N/A',
-                    'Response Tokens': r.cluster.responseTokens || 'N/A',
-                    'Total Tokens': r.cluster.totalTokens || 'N/A'
+                    'Latency (s)': r.cluster.successCount > 0 
+                        ? `${r.cluster.latency.mean.toFixed(2)} ± ${r.cluster.latency.stdDev.toFixed(2)}`
+                        : 'FAIL',
+                    'Cost ($)': r.cluster.successCount > 0
+                        ? `${r.cluster.cost.mean.toFixed(6)} ± ${r.cluster.cost.stdDev.toFixed(6)}`
+                        : 'N/A',
+                    'Prompt Tokens': r.cluster.successCount > 0
+                        ? `${r.cluster.promptTokens.mean.toFixed(0)} ± ${r.cluster.promptTokens.stdDev.toFixed(0)}`
+                        : 'N/A',
+                    'Response Tokens': r.cluster.successCount > 0
+                        ? `${r.cluster.responseTokens.mean.toFixed(0)} ± ${r.cluster.responseTokens.stdDev.toFixed(0)}`
+                        : 'N/A',
+                    'Runs': `${r.cluster.successCount}/${r.cluster.runs}`
                 },
                 {
                     Question: '',
                     Mode: 'Raw',
-                    'Latency (s)': r.raw.error ? 'FAIL' : r.raw.latencySec,
-                    'Est. Cost ($)': r.raw.error ? 'N/A' : r.raw.costUSD.toFixed(6),
-                    'Prompt Tokens': r.raw.promptTokens || 'N/A',
-                    'Response Tokens': r.raw.responseTokens || 'N/A',
-                    'Total Tokens': r.raw.totalTokens || 'N/A'
+                    'Latency (s)': r.raw.successCount > 0
+                        ? `${r.raw.latency.mean.toFixed(2)} ± ${r.raw.latency.stdDev.toFixed(2)}`
+                        : 'FAIL',
+                    'Cost ($)': r.raw.successCount > 0
+                        ? `${r.raw.cost.mean.toFixed(6)} ± ${r.raw.cost.stdDev.toFixed(6)}`
+                        : 'N/A',
+                    'Prompt Tokens': r.raw.successCount > 0
+                        ? `${r.raw.promptTokens.mean.toFixed(0)} ± ${r.raw.promptTokens.stdDev.toFixed(0)}`
+                        : 'N/A',
+                    'Response Tokens': r.raw.successCount > 0
+                        ? `${r.raw.responseTokens.mean.toFixed(0)} ± ${r.raw.responseTokens.stdDev.toFixed(0)}`
+                        : 'N/A',
+                    'Runs': `${r.raw.successCount}/${r.raw.runs}`
                 }
             ]);
 
             console.table(tableData);
 
-            // Calculate aggregates
-            const clusterStats = this.calculateAggregates(this.results.map(r => r.cluster));
-            const rawStats = this.calculateAggregates(this.results.map(r => r.raw));
+            // Calculate aggregates across all questions
+            const clusterStats = this.calculateOverallAggregates(this.results.map(r => r.cluster));
+            const rawStats = this.calculateOverallAggregates(this.results.map(r => r.raw));
 
-            console.log("\n📊 AGGREGATE STATISTICS");
+            console.log("\n📊 OVERALL AGGREGATE STATISTICS");
             console.log("-".repeat(80));
             console.log("Cluster Mode:");
-            console.log(`  Avg Latency: ${clusterStats.avgLatency.toFixed(2)}s`);
-            console.log(`  Avg Cost: $${clusterStats.avgCost.toFixed(6)}`);
-            console.log(`  Avg Total Tokens: ${clusterStats.avgTokens.toFixed(0)}`);
+            console.log(`  Avg Latency: ${clusterStats.avgLatency.mean.toFixed(2)}s ± ${clusterStats.avgLatency.stdDev.toFixed(2)}s`);
+            console.log(`  Avg Cost: $${clusterStats.avgCost.mean.toFixed(6)} ± $${clusterStats.avgCost.stdDev.toFixed(6)}`);
+            console.log(`  Avg Total Tokens: ${clusterStats.avgTokens.mean.toFixed(0)} ± ${clusterStats.avgTokens.stdDev.toFixed(0)}`);
             console.log(`  Success Rate: ${clusterStats.successRate}%`);
             
             console.log("\nRaw Mode:");
-            console.log(`  Avg Latency: ${rawStats.avgLatency.toFixed(2)}s`);
-            console.log(`  Avg Cost: $${rawStats.avgCost.toFixed(6)}`);
-            console.log(`  Avg Total Tokens: ${rawStats.avgTokens.toFixed(0)}`);
+            console.log(`  Avg Latency: ${rawStats.avgLatency.mean.toFixed(2)}s ± ${rawStats.avgLatency.stdDev.toFixed(2)}s`);
+            console.log(`  Avg Cost: $${rawStats.avgCost.mean.toFixed(6)} ± $${rawStats.avgCost.stdDev.toFixed(6)}`);
+            console.log(`  Avg Total Tokens: ${rawStats.avgTokens.mean.toFixed(0)} ± ${rawStats.avgTokens.stdDev.toFixed(0)}`);
             console.log(`  Success Rate: ${rawStats.successRate}%`);
 
             console.log("\n" + "=".repeat(80));
         }
 
-        calculateAggregates(results) {
-            const successful = results.filter(r => !r.error);
-            const successCount = successful.length;
-            const totalCount = results.length;
+        calculateOverallAggregates(results) {
+            const successful = results.filter(r => r.successCount > 0);
+            const successCount = successful.reduce((sum, r) => sum + r.successCount, 0);
+            const totalCount = results.reduce((sum, r) => sum + r.runs, 0);
 
             if (successCount === 0) {
                 return {
-                    avgLatency: 0,
-                    avgCost: 0,
-                    avgTokens: 0,
+                    avgLatency: { mean: 0, stdDev: 0 },
+                    avgCost: { mean: 0, stdDev: 0 },
+                    avgTokens: { mean: 0, stdDev: 0 },
                     successRate: 0
                 };
             }
 
-            const avgLatency = successful.reduce((sum, r) => sum + r.latencyMs, 0) / successCount / 1000;
-            const avgCost = successful.reduce((sum, r) => sum + r.costUSD, 0) / successCount;
-            const avgTokens = successful.reduce((sum, r) => sum + r.totalTokens, 0) / successCount;
+            // Extract all means from each question's statistics
+            const latencyMeans = successful.map(r => r.latency.mean);
+            const costMeans = successful.map(r => r.cost.mean);
+            const tokenMeans = successful.map(r => r.totalTokens.mean);
+
+            // Calculate statistics of the means
+            const avgLatency = this.calculateStats(latencyMeans);
+            const avgCost = this.calculateStats(costMeans);
+            const avgTokens = this.calculateStats(tokenMeans);
             const successRate = ((successCount / totalCount) * 100).toFixed(1);
 
             return { avgLatency, avgCost, avgTokens, successRate };
@@ -2108,19 +2221,21 @@ Begin your narrative now:
         displayDetailedResponses() {
             console.log("\n" + "=".repeat(80));
             console.log("📝 DETAILED RESPONSES FOR MANUAL ACCURACY REVIEW");
+            console.log(`Runs per question: ${this.runsPerQuestion}`);
             console.log("=".repeat(80));
 
             this.results.forEach((r, i) => {
                 console.log(`\n${"─".repeat(80)}`);
                 console.log(`Question ${i + 1}: ${r.question}`);
                 console.log(`Ground Truth: ${r.groundTruth}`);
+                console.log(`Successful runs: Cluster ${r.cluster.successCount}/${r.cluster.runs}, Raw ${r.raw.successCount}/${r.raw.runs}`);
                 console.log(`${"─".repeat(80)}`);
                 
-                console.log("\n[CLUSTER MODE RESPONSE]");
-                console.log(r.cluster.response || `ERROR: ${r.cluster.error}`);
+                console.log("\n[CLUSTER MODE RESPONSE (Representative)]");
+                console.log(r.cluster.representativeResponse || `ERROR: ${r.cluster.errors.join(', ')}`);
                 
-                console.log("\n[RAW MODE RESPONSE]");
-                console.log(r.raw.response || `ERROR: ${r.raw.error}`);
+                console.log("\n[RAW MODE RESPONSE (Representative)]");
+                console.log(r.raw.representativeResponse || `ERROR: ${r.raw.errors.join(', ')}`);
                 
                 console.log("\n");
             });
@@ -2131,9 +2246,11 @@ Begin your narrative now:
                 metadata: {
                     timestamp: new Date().toISOString(),
                     totalQuestions: this.benchmarks.length,
+                    runsPerQuestion: this.runsPerQuestion,
                     datasetSize: allData.length
                 },
-                results: this.results
+                aggregatedResults: this.results,
+                rawRunData: this.rawRunData
             };
 
             const dataStr = JSON.stringify(exportData, null, 2);
@@ -2154,57 +2271,109 @@ Begin your narrative now:
         }
 
         exportToCSV() {
-            let csv = "Question ID,Question,Mode,Latency (s),Prompt Tokens,Response Tokens,Total Tokens,Est. Cost ($),Error\n";
+            // CSV with aggregated statistics (mean ± stdDev)
+            let csv = "Question ID,Question,Mode,Runs,Success Rate,Latency Mean (s),Latency StdDev (s),Prompt Tokens Mean,Prompt Tokens StdDev,Response Tokens Mean,Response Tokens StdDev,Total Tokens Mean,Total Tokens StdDev,Cost Mean ($),Cost StdDev ($)\n";
             
             this.results.forEach(r => {
                 // Cluster row
                 csv += `${r.questionId},"${r.question.replace(/"/g, '""')}",cluster,`;
-                csv += `${r.cluster.latencySec},`;
-                csv += `${r.cluster.promptTokens || ''},`;
-                csv += `${r.cluster.responseTokens || ''},`;
-                csv += `${r.cluster.totalTokens || ''},`;
-                csv += `${r.cluster.costUSD?.toFixed(6) || ''},`;
-                csv += `"${r.cluster.error || ''}"\n`;
+                csv += `${r.cluster.runs},`;
+                csv += `${((r.cluster.successCount / r.cluster.runs) * 100).toFixed(1)}%,`;
+                csv += `${r.cluster.latency.mean.toFixed(4)},`;
+                csv += `${r.cluster.latency.stdDev.toFixed(4)},`;
+                csv += `${r.cluster.promptTokens.mean.toFixed(2)},`;
+                csv += `${r.cluster.promptTokens.stdDev.toFixed(2)},`;
+                csv += `${r.cluster.responseTokens.mean.toFixed(2)},`;
+                csv += `${r.cluster.responseTokens.stdDev.toFixed(2)},`;
+                csv += `${r.cluster.totalTokens.mean.toFixed(2)},`;
+                csv += `${r.cluster.totalTokens.stdDev.toFixed(2)},`;
+                csv += `${r.cluster.cost.mean.toFixed(8)},`;
+                csv += `${r.cluster.cost.stdDev.toFixed(8)}\n`;
                 
                 // Raw row
                 csv += `${r.questionId},"${r.question.replace(/"/g, '""')}",raw,`;
-                csv += `${r.raw.latencySec},`;
-                csv += `${r.raw.promptTokens || ''},`;
-                csv += `${r.raw.responseTokens || ''},`;
-                csv += `${r.raw.totalTokens || ''},`;
-                csv += `${r.raw.costUSD?.toFixed(6) || ''},`;
-                csv += `"${r.raw.error || ''}"\n`;
+                csv += `${r.raw.runs},`;
+                csv += `${((r.raw.successCount / r.raw.runs) * 100).toFixed(1)}%,`;
+                csv += `${r.raw.latency.mean.toFixed(4)},`;
+                csv += `${r.raw.latency.stdDev.toFixed(4)},`;
+                csv += `${r.raw.promptTokens.mean.toFixed(2)},`;
+                csv += `${r.raw.promptTokens.stdDev.toFixed(2)},`;
+                csv += `${r.raw.responseTokens.mean.toFixed(2)},`;
+                csv += `${r.raw.responseTokens.stdDev.toFixed(2)},`;
+                csv += `${r.raw.totalTokens.mean.toFixed(2)},`;
+                csv += `${r.raw.totalTokens.stdDev.toFixed(2)},`;
+                csv += `${r.raw.cost.mean.toFixed(8)},`;
+                csv += `${r.raw.cost.stdDev.toFixed(8)}\n`;
             });
 
-            console.log("\n📊 CSV Export:");
+            console.log("\n📊 Aggregated CSV Export (Mean ± StdDev):");
             console.log(csv);
 
-            // Create downloadable file
+            // Create downloadable file for aggregated results
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.setAttribute('href', url);
-            link.setAttribute('download', `benchmark_${new Date().toISOString().split('T')[0]}.csv`);
+            link.setAttribute('download', `benchmark_aggregated_${new Date().toISOString().split('T')[0]}.csv`);
             link.style.display = 'none';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
             
-            console.log("✅ CSV file download initiated");
+            // Also export raw individual runs
+            this.exportRawRunsCSV();
+            
+            console.log("✅ CSV files downloaded (aggregated + raw runs)");
             
             return csv;
+        }
+
+        exportRawRunsCSV() {
+            // CSV with individual run data
+            let csv = "Question ID,Question,Run,Mode,Latency (s),Prompt Tokens,Response Tokens,Total Tokens,Cost ($),Error\n";
+            
+            this.rawRunData.forEach(run => {
+                // Cluster run
+                csv += `${run.questionId},"${run.question.replace(/"/g, '""')}",${run.run},cluster,`;
+                csv += `${(run.cluster.latencyMs / 1000).toFixed(4)},`;
+                csv += `${run.cluster.promptTokens || ''},`;
+                csv += `${run.cluster.responseTokens || ''},`;
+                csv += `${run.cluster.totalTokens || ''},`;
+                csv += `${run.cluster.costUSD?.toFixed(8) || ''},`;
+                csv += `"${run.cluster.error || ''}"\n`;
+                
+                // Raw run
+                csv += `${run.questionId},"${run.question.replace(/"/g, '""')}",${run.run},raw,`;
+                csv += `${(run.raw.latencyMs / 1000).toFixed(4)},`;
+                csv += `${run.raw.promptTokens || ''},`;
+                csv += `${run.raw.responseTokens || ''},`;
+                csv += `${run.raw.totalTokens || ''},`;
+                csv += `${run.raw.costUSD?.toFixed(8) || ''},`;
+                csv += `"${run.raw.error || ''}"\n`;
+            });
+
+            // Create downloadable file for raw runs
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `benchmark_raw_runs_${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
     }
 
     // Global function to run the benchmark
-    window.runBenchmark = async function() {
+    window.runBenchmark = async function(runsPerQuestion = 1) {
         if (!allData || allData.length === 0) {
             console.error("❌ No data loaded. Please wait for the map to load data first.");
             return;
         }
 
         console.clear();
-        const evaluator = new ContextModeEvaluator(benchmarkQuestions);
+        const evaluator = new ContextModeEvaluator(benchmarkQuestions, runsPerQuestion);
         
         try {
             await evaluator.run();
@@ -2216,9 +2385,12 @@ Begin your narrative now:
             evaluator.exportToCSV();
             
             console.log("\n✅ Benchmark complete!");
+            console.log(`\n📊 Ran ${runsPerQuestion} iteration(s) per question for statistical analysis.`);
             console.log("\n💡 TIP: To manually score accuracy, review the detailed responses above.");
             console.log("💡 TIP: Results are saved in localStorage. Retrieve with: JSON.parse(localStorage.getItem('benchmarkResults'))");
-            console.log("💡 TIP: CSV file has been downloaded for your analysis.");
+            console.log("💡 TIP: TWO CSV files downloaded:");
+            console.log("   - benchmark_aggregated_*.csv: Mean ± StdDev for each question");
+            console.log("   - benchmark_raw_runs_*.csv: Individual run data for detailed analysis");
             
             return jsonData;
         } catch (error) {
@@ -2413,7 +2585,10 @@ Begin your narrative now:
     };
     
     console.log("✅ Benchmark system loaded!");
-    console.log("📌 Run benchmark with: runBenchmark()");
+    console.log("📌 Run benchmark with: runBenchmark(runsPerQuestion)");
+    console.log("   Example: runBenchmark(1)  - Single run per question (fast)");
+    console.log("   Example: runBenchmark(3)  - 3 runs per question (recommended for stats)");
+    console.log("   Example: runBenchmark(5)  - 5 runs per question (publication-quality)");
     console.log("📌 View questions with: benchmarkQuestions");
     console.log("📌 Test API connection: testAPIConnection()");
     console.log("📌 Estimate raw mode calls: estimateRawModeCalls()");
