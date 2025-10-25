@@ -347,8 +347,9 @@
 
     const RAW_SINGLE_REQUEST_CHAR_LIMIT = 11000;
     const RAW_MAX_CHUNKS = 50;
-    const TOKENS_PER_CHAR_ESTIMATE = 0.35;       // approximate tokens per character
+    const TOKENS_PER_CHAR_ESTIMATE = 0.25;       // More accurate estimate (1 token ~ 4 chars)
     const MAX_INPUT_TOKENS = 3000;               // Reduced from 4000 to create lighter, safer chunks
+    const SYNTHESIS_CONTEXT_LIMIT = 120000;      // Set a safe limit for the final prompt (e.g., ~90% of 131k)
 
     // ============================================================================
     // BENCHMARK INSTRUCTIONS - RUN THESE COMMANDS IN YOUR BROWSER CONSOLE
@@ -410,8 +411,8 @@
         MAX_CHUNKS: 50,
         
         // Minimum delay enforced between ANY consecutive API calls (milliseconds)
-        // Increased to 40 seconds for ultra-conservative approach to avoid 429 errors
-        MIN_REQUEST_SPACING_MS: 40000
+        // Reduced to 10 seconds as Llama 8.1B has a solid RPM
+        MIN_REQUEST_SPACING_MS: 10000
     };
 
     // Track last API call time for rate limiting
@@ -914,6 +915,9 @@
             throw new Error('No route data has been loaded yet. Zoom or reload the map to fetch telemetry.');
         }
 
+        // Helper to estimate tokens more accurately
+        const estimateTokens = (text) => Math.ceil((text || '').length / 4);
+
         // Ensure minimum spacing from any previous API calls (e.g., cluster mode benchmark)
         await enforceRateLimit();
 
@@ -956,18 +960,20 @@
 
         const chunkNotes = [];
         const chunkDescriptors = [];
+        let cumulativeNotesTokens = 0;
+        let synthesisForced = false;
 
         for (let i = 0; i < chunks.length; i++) {
             const chunk = chunks[i];
             const chunkJson = JSON.stringify(chunk.data, null, 2);
             
             // Calculate and log chunk size for debugging
-            const estimatedTokens = Math.ceil(chunkJson.length * TOKENS_PER_CHAR_ESTIMATE);
-            chunkDescriptors.push(`Chunk ${i + 1}: records ${chunk.startIndex + 1}-${chunk.endIndex + 1} (${chunkJson.length} chars, ~${estimatedTokens} tokens)`);
+            const estimatedChunkTokens = estimateTokens(chunkJson);
+            chunkDescriptors.push(`Chunk ${i + 1}: records ${chunk.startIndex + 1}-${chunk.endIndex + 1} (${chunkJson.length} chars, ~${estimatedChunkTokens} tokens)`);
             
             // Warn if chunk might exceed token limit
-            if (estimatedTokens > MAX_INPUT_TOKENS) {
-                console.warn(`⚠️ WARNING: Chunk ${i + 1} may exceed token limit (${estimatedTokens} > ${MAX_INPUT_TOKENS})`);
+            if (estimatedChunkTokens > MAX_INPUT_TOKENS) {
+                console.warn(`⚠️ WARNING: Chunk ${i + 1} may exceed token limit (${estimatedChunkTokens} > ${MAX_INPUT_TOKENS})`);
             }
 
             // Add delay between chunks to avoid rate limiting (except for first chunk)
@@ -977,39 +983,65 @@
                 await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_CONFIG.CHUNK_DELAY_MS));
             }
 
-            console.log(`📊 Processing chunk ${i + 1}/${chunks.length} (~${estimatedTokens} tokens)...`);
+            console.log(`📊 Processing chunk ${i + 1}/${chunks.length} (~${estimatedChunkTokens} tokens)...`);
             const chunkResponse = await callLLMAPI(
                 buildPrompt('rawChunk', query, chunkJson, {
                     chunkIndex: i + 1,
                     totalChunks: chunks.length
                 })
             );
-            chunkNotes.push(`Chunk ${i + 1} findings:\n${chunkResponse}`);
+
+            const note = `Chunk ${i + 1} findings:\n${chunkResponse}`;
+            const noteTokens = estimateTokens(note);
+            
+            // Check if adding this note exceeds our synthesis budget
+            if (cumulativeNotesTokens + noteTokens > SYNTHESIS_CONTEXT_LIMIT) {
+                console.warn(`🚨 CONTEXT LIMIT REACHED!`);
+                console.warn(`   Cumulative notes: ${cumulativeNotesTokens} tokens.`);
+                console.warn(`   Next note would add ${noteTokens} tokens, exceeding the ${SYNTHESIS_CONTEXT_LIMIT} token budget.`);
+                console.warn(`   Moving to final synthesis with ${chunkNotes.length} notes. Skipping remaining ${chunks.length - i} chunks.`);
+                synthesisForced = true;
+                break; // Exit the loop to proceed to synthesis
+            }
+
+            chunkNotes.push(note);
+            cumulativeNotesTokens += noteTokens;
+            console.log(`   Added note (${noteTokens} tokens). Cumulative notes tokens: ${cumulativeNotesTokens}`);
         }
 
-        const truncatedNote = truncated
-            ? `Only the first ${processedCount} of ${allData.length} records could be processed due to token limits.`
-            : `All ${processedCount} records were processed across ${chunks.length} chunk(s).`;
+        const finalTruncated = truncated || synthesisForced;
+        let truncatedNote;
+        if (synthesisForced) {
+            const lastChunk = chunks[chunkNotes.length - 1];
+            const recordsAnalyzed = lastChunk.endIndex + 1;
+            truncatedNote = `Analysis was stopped after ${chunkNotes.length} chunks to avoid exceeding the model's context window. The first ${recordsAnalyzed} of ${allData.length} records were processed.`;
+        } else {
+            truncatedNote = finalTruncated
+                ? `Only the first ${processedCount} of ${allData.length} records could be processed due to token limits.`
+                : `All ${processedCount} records were processed across ${chunks.length} chunk(s).`;
+        }
 
         // Add delay before final synthesis to avoid rate limiting
         const finalDelaySeconds = RATE_LIMIT_CONFIG.FINAL_DELAY_MS / 1000;
         console.log(`⏳ Waiting ${finalDelaySeconds}s before final synthesis...`);
         await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_CONFIG.FINAL_DELAY_MS));
 
-        console.log(`🔄 Synthesizing final response from ${chunks.length} chunk(s)...`);
+        console.log(`🔄 Synthesizing final response from ${chunkNotes.length} chunk(s)...`);
         const finalPrompt = buildPrompt('rawFinal', query, chunkNotes.join('\n\n'), {
-            chunkCount: chunks.length,
+            chunkCount: chunkNotes.length,
             truncatedNote
         });
+
+        console.log(`   Final prompt token estimate: ${estimateTokens(finalPrompt)}`);
         const finalResponse = await callLLMAPI(finalPrompt);
 
     const partialNotes = chunkNotes.join('\n\n');
     const dataSummary = `${chunkDescriptors.join('\n')}
-${truncated ? `⚠️ ${truncatedNote}` : truncatedNote}
+${finalTruncated ? `⚠️ ${truncatedNote}` : truncatedNote}
 
 Partial chunk notes forwarded to the final prompt:
 ${partialNotes}`;
-    return { response: finalResponse, category: truncated ? 'raw-chunked-partial' : 'raw-chunked', dataSummary };
+    return { response: finalResponse, category: finalTruncated ? 'raw-chunked-partial' : 'raw-chunked', dataSummary };
     }
 
     async function processUserQuery(query, mode = 'cluster') {
