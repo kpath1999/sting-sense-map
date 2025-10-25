@@ -916,7 +916,18 @@
                 if (!message) {
                     throw new Error('Received an empty response from the language model.');
                 }
-                return message.trim();
+                
+                // Extract actual token usage from API response
+                const usage = data?.usage || null;
+                
+                return {
+                    message: message.trim(),
+                    usage: usage ? {
+                        promptTokens: usage.prompt_tokens || 0,
+                        completionTokens: usage.completion_tokens || 0,
+                        totalTokens: usage.total_tokens || 0
+                    } : null
+                };
             } catch (error) {
                 if (attempt === retries) {
                     throw error;
@@ -940,15 +951,30 @@
 
         // Ensure minimum spacing from any previous API calls (e.g., cluster mode benchmark)
         await enforceRateLimit();
+        
+        // Track actual token usage across all API calls
+        let totalPromptTokens = 0;
+        let totalCompletionTokens = 0;
 
         const jsonDataset = JSON.stringify(allData, null, 2);
         if (jsonDataset.length <= RAW_SINGLE_REQUEST_CHAR_LIMIT) {
             const prompt = buildPrompt('raw', query, jsonDataset);
-            const response = await callLLMAPI(prompt);
+            const apiResponse = await callLLMAPI(prompt);
+            
+            if (apiResponse.usage) {
+                totalPromptTokens = apiResponse.usage.promptTokens;
+                totalCompletionTokens = apiResponse.usage.completionTokens;
+            }
+            
             return {
-                response,
+                response: apiResponse.message,
                 category: 'raw-single',
-                dataSummary: `Full dataset (${allData.length} records, ${jsonDataset.length} chars) sent to model.\n\n${jsonDataset}`
+                dataSummary: `Full dataset (${allData.length} records, ${jsonDataset.length} chars) sent to model.\n\n${jsonDataset}`,
+                actualTokens: {
+                    promptTokens: totalPromptTokens,
+                    completionTokens: totalCompletionTokens,
+                    totalTokens: totalPromptTokens + totalCompletionTokens
+                }
             };
         }
 
@@ -1008,19 +1034,26 @@
             }
 
             console.log(`📊 Processing chunk ${i + 1}/${chunks.length} (~${estimatedChunkTokens} tokens)...`);
-            const chunkResponse = await callLLMAPI(
+            const apiResponse = await callLLMAPI(
                 buildPrompt('rawChunk', query, chunkJson, {
                     chunkIndex: i + 1,
                     totalChunks: chunks.length
                 })
             );
 
-            const note = `Chunk ${i + 1} findings:\n${chunkResponse}`;
+            // Track actual token usage from API
+            if (apiResponse.usage) {
+                totalPromptTokens += apiResponse.usage.promptTokens;
+                totalCompletionTokens += apiResponse.usage.completionTokens;
+                console.log(`   📊 Tokens: ${apiResponse.usage.promptTokens} prompt + ${apiResponse.usage.completionTokens} completion = ${apiResponse.usage.totalTokens} total`);
+            }
+
+            const note = `Chunk ${i + 1} findings:\n${apiResponse.message}`;
             const noteTokens = estimateTokens(note);
             
             // Log response preview for debugging
-            const preview = chunkResponse.substring(0, 100).replace(/\n/g, ' ');
-            console.log(`   ✓ Chunk ${i + 1} response: "${preview}${chunkResponse.length > 100 ? '...' : ''}"`);
+            const preview = apiResponse.message.substring(0, 100).replace(/\n/g, ' ');
+            console.log(`   ✓ Chunk ${i + 1} response: "${preview}${apiResponse.message.length > 100 ? '...' : ''}"`);
             
             // Check if adding this note exceeds our synthesis budget
             if (cumulativeNotesTokens + noteTokens > SYNTHESIS_CONTEXT_LIMIT) {
@@ -1063,11 +1096,22 @@
         });
 
         console.log(`   Final prompt token estimate: ${estimateTokens(finalPrompt)}`);
-        const finalResponse = await callLLMAPI(finalPrompt);
+        const finalApiResponse = await callLLMAPI(finalPrompt);
+        
+        // Track final synthesis tokens
+        if (finalApiResponse.usage) {
+            totalPromptTokens += finalApiResponse.usage.promptTokens;
+            totalCompletionTokens += finalApiResponse.usage.completionTokens;
+            console.log(`   📊 Tokens: ${finalApiResponse.usage.promptTokens} prompt + ${finalApiResponse.usage.completionTokens} completion = ${finalApiResponse.usage.totalTokens} total`);
+        }
         
         // Log final response preview
-        const finalPreview = finalResponse.substring(0, 150).replace(/\n/g, ' ');
-        console.log(`   ✅ Final synthesis: "${finalPreview}${finalResponse.length > 150 ? '...' : ''}"`);
+        const finalPreview = finalApiResponse.message.substring(0, 150).replace(/\n/g, ' ');
+        console.log(`   ✅ Final synthesis: "${finalPreview}${finalApiResponse.message.length > 150 ? '...' : ''}"`);
+        
+        // Log cumulative token usage for entire raw mode query
+        const totalTokens = totalPromptTokens + totalCompletionTokens;
+        console.log(`\n   📊 TOTAL RAW MODE TOKENS: ${totalPromptTokens.toLocaleString()} prompt + ${totalCompletionTokens.toLocaleString()} completion = ${totalTokens.toLocaleString()} total\n`);
 
     const partialNotes = chunkNotes.join('\n\n');
     const dataSummary = `${chunkDescriptors.join('\n')}
@@ -1075,7 +1119,16 @@ ${finalTruncated ? `⚠️ ${truncatedNote}` : truncatedNote}
 
 Partial chunk notes forwarded to the final prompt:
 ${partialNotes}`;
-    return { response: finalResponse, category: finalTruncated ? 'raw-chunked-partial' : 'raw-chunked', dataSummary };
+    return { 
+        response: finalApiResponse.message, 
+        category: finalTruncated ? 'raw-chunked-partial' : 'raw-chunked', 
+        dataSummary,
+        actualTokens: {
+            promptTokens: totalPromptTokens,
+            completionTokens: totalCompletionTokens,
+            totalTokens: totalTokens
+        }
+    };
     }
 
     async function processUserQuery(query, mode = 'cluster') {
@@ -1087,13 +1140,29 @@ ${partialNotes}`;
         const summary = await fetchRelevantData(category);
         const dataSummary = formatSummaryForPrompt(category, summary);
         const prompt = buildPrompt(category, query, dataSummary);
-        const response = await callLLMAPI(prompt);
+        const apiResponse = await callLLMAPI(prompt);
+        
+        // Extract actual token usage
+        let actualTokens = null;
+        if (apiResponse.usage) {
+            actualTokens = {
+                promptTokens: apiResponse.usage.promptTokens,
+                completionTokens: apiResponse.usage.completionTokens,
+                totalTokens: apiResponse.usage.totalTokens
+            };
+            console.log(`   📊 Tokens: ${apiResponse.usage.promptTokens} prompt + ${apiResponse.usage.completionTokens} completion = ${apiResponse.usage.totalTokens} total`);
+        }
         
         // Log cluster mode response preview
-        const preview = response.substring(0, 120).replace(/\n/g, ' ');
-        console.log(`   ✅ Cluster response: "${preview}${response.length > 120 ? '...' : ''}"`);
+        const preview = apiResponse.message.substring(0, 120).replace(/\n/g, ' ');
+        console.log(`   ✅ Cluster response: "${preview}${apiResponse.message.length > 120 ? '...' : ''}"`);
         
-        return { response, category, dataSummary };
+        return { 
+            response: apiResponse.message, 
+            category, 
+            dataSummary,
+            actualTokens
+        };
     }
 
     function renderLoadingState(query, mode) {
@@ -2137,9 +2206,11 @@ Begin your narrative now:
         }
 
         calculateCost(promptTokens, responseTokens) {
-            // Adjust these rates based on your actual LLM pricing
-            const promptCost = (promptTokens / 1_000_000) * 0.11;  // $0.11 per 1M input tokens
-            const responseCost = (responseTokens / 1_000_000) * 0.34; // $0.34 per 1M output tokens
+            // Llama 3.1 8B pricing (via Groq/Vercel AI Gateway):
+            // Input: $0.05 per 1M tokens (20M tokens = $1)
+            // Output: $0.08 per 1M tokens (approximately 13M tokens = $1)
+            const promptCost = (promptTokens / 1_000_000) * 0.05;
+            const responseCost = (responseTokens / 1_000_000) * 0.08;
             return promptCost + responseCost;
         }
 
@@ -2164,16 +2235,31 @@ Begin your narrative now:
                 const endTime = performance.now();
 
                 const latencyMs = endTime - startTime;
-                const promptTokens = this.estimateTokens(result.dataSummary);
-                const responseTokens = this.estimateTokens(result.response);
+                
+                // Use actual tokens from API response, fallback to estimates if not available
+                let promptTokens, responseTokens;
+                if (result.actualTokens) {
+                    promptTokens = result.actualTokens.promptTokens;
+                    responseTokens = result.actualTokens.completionTokens;
+                } else {
+                    // Fallback to estimates (shouldn't happen with updated code)
+                    promptTokens = this.estimateTokens(result.dataSummary);
+                    responseTokens = this.estimateTokens(result.response);
+                    console.warn(`⚠️ No actual token data available for ${mode} mode, using estimates`);
+                }
+                
+                const totalTokens = promptTokens + responseTokens;
                 const totalCost = this.calculateCost(promptTokens, responseTokens);
+
+                // Log token summary for this mode
+                console.log(`   💰 Cost: $${totalCost.toFixed(6)} | Latency: ${(latencyMs / 1000).toFixed(2)}s\n`);
 
                 return {
                     latencyMs,
                     latencySec: (latencyMs / 1000).toFixed(2),
                     promptTokens,
                     responseTokens,
-                    totalTokens: promptTokens + responseTokens,
+                    totalTokens,
                     costUSD: totalCost,
                     response: result.response,
                     dataSummary: result.dataSummary,
