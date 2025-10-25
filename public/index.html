@@ -678,13 +678,16 @@
             }
         }
         
-        const processed = result.length > 0 ? result[result.length - 1].endIndex + 1 : 0;
-        const truncated = processed < features.length || chunksToCreate < totalPossibleChunks;
+        // Calculate actual number of records processed
+        // For random sampling, sum up records in each chunk
+        // For sequential, it's the endIndex of last chunk + 1
+        const processedCount = result.reduce((sum, chunk) => sum + (chunk.endIndex - chunk.startIndex + 1), 0);
+        const truncated = processedCount < features.length || chunksToCreate < totalPossibleChunks;
         
         return {
             chunks: result,
             truncated: truncated,
-            processedCount: processed,
+            processedCount: processedCount,
             isRandomSample: chunksToCreate < totalPossibleChunks,
             totalRecords: features.length
         };
