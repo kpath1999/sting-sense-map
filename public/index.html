@@ -366,7 +366,8 @@
     //   - Tests 5 representative questions in both cluster and raw modes
     //   - Runs each question 5 times to calculate mean ± standard deviation
     //   - Measures: latency, token usage, cost for each run
-    //   - Estimated time: ~50-75 minutes for full benchmark
+    //   - Raw mode uses random sampling (5 chunks) for stochastic responses
+    //   - Estimated time: ~2.5-3 hours for full 5-run benchmark (60s rate limits)
     //
     // OUTPUT FILES:
     //   - benchmark_aggregated_YYYY-MM-DD.csv (mean ± stdDev for each question)
@@ -374,8 +375,8 @@
     //   - Results also saved to localStorage and console
     //
     // OPTIONAL COMMANDS:
-    //   - runBenchmark(1)  : Quick test (1 run per question, ~10-15 min)
-    //   - runBenchmark(3)  : Standard test (3 runs per question, ~30-45 min)
+    //   - runBenchmark(1)  : Quick test (1 run per question, ~30-40 min total)
+    //   - runBenchmark(3)  : Standard test (3 runs per question, ~1.5-2 hours total)
     //   - checkDataCoverage() : Check if raw mode processes full dataset
     //   - estimateRawModeCalls() : Estimate time for raw mode query
     //
@@ -383,36 +384,36 @@
 
     // ============================================================================
     // RATE LIMITING CONFIGURATION
-    // Based on empirical testing: API has BOTH RPM (Requests Per Minute) and TPM (Tokens Per Minute) limits.
-    // TPM limit was hit on chunk 7/8 even with 20s delays, indicating TPM accumulates over 60s sliding window.
-    // Conservative settings: 30s delays ensure we stay well under both RPM and TPM limits.
+    // Model: llama-3.1-8b-instant has 30 RPM, 6K TPM limits
+    // TPM is the bottleneck: Testing shows 429 errors even with 30s spacing
+    // Conservative settings: 60s spacing ensures we stay well under limits
     // These settings apply to both live webpage queries and benchmark runs.
     // ============================================================================
     const RATE_LIMIT_CONFIG = {
         // Delay between chunk processing (milliseconds)
-        // Set to 30 seconds to avoid TPM (Tokens Per Minute) limit violations
-        CHUNK_DELAY_MS: 30000,
+        // Increased to 60 seconds to avoid TPM (Tokens Per Minute) limit violations
+        CHUNK_DELAY_MS: 60000,
         
         // Delay before final synthesis call (milliseconds)
         // Must be at least as long as CHUNK_DELAY_MS for consistency
-        FINAL_DELAY_MS: 30000,
+        FINAL_DELAY_MS: 60000,
         
         // Maximum number of retry attempts when rate limited
         // More retries = more resilient, but slower on failure
         MAX_RETRIES: 3,
         
         // Base delay for exponential backoff on retries (milliseconds)
-        // Starts at 15 seconds to be safe
-        RETRY_BASE_DELAY_MS: 15000,
+        // Starts at 30 seconds to be safe
+        RETRY_BASE_DELAY_MS: 30000,
         
         // Maximum chunks to process in raw mode
-        // Increased to 50 to handle 1,219 records with 4K token chunks (~25-26 chunks needed)
-        // Trade-off: More API calls = longer processing time but fuller dataset analysis
-        MAX_CHUNKS: 50,
+        // Limited to 5 chunks with random sampling for stochastic responses
+        // Trade-off: Faster processing, but not full dataset coverage
+        MAX_CHUNKS: 5,
         
         // Minimum delay enforced between ANY consecutive API calls (milliseconds)
-        // Reduced to 10 seconds as Llama 8.1B has a solid RPM
-        MIN_REQUEST_SPACING_MS: 10000
+        // Increased to 60 seconds to match chunk delay
+        MIN_REQUEST_SPACING_MS: 60000
     };
 
     // Track last API call time for rate limiting
@@ -611,40 +612,34 @@
         console.log(`   Tokens per feature: ~${tokensPerFeature.toFixed(1)} tokens`);
         console.log(`   Features per chunk: ${featuresPerChunk}`);
         console.log(`   Target chunk size: ~${Math.round(availableTokensPerChunk * 0.8)} tokens`);
+        console.log(`   Max chunks limit: ${RATE_LIMIT_CONFIG.MAX_CHUNKS}`);
         
-        // Step 8: Split the dataset into chunks
+        // Step 8: RANDOM SAMPLING APPROACH
+        // Instead of sequential chunks, randomly sample from the dataset
+        // This provides stochastic responses and better coverage with fewer API calls
+        
+        const maxChunks = RATE_LIMIT_CONFIG.MAX_CHUNKS;
+        const totalPossibleChunks = Math.ceil(features.length / featuresPerChunk);
+        const chunksToCreate = Math.min(maxChunks, totalPossibleChunks);
+        
+        console.log(`🎲 Random sampling strategy:`);
+        console.log(`   Total possible chunks: ${totalPossibleChunks}`);
+        console.log(`   Chunks to create: ${chunksToCreate}`);
+        console.log(`   Sampling approach: ${chunksToCreate < totalPossibleChunks ? 'RANDOM' : 'FULL'}`);
+        
         const result = [];
-        let startIndex = 0;
-        let processed = 0;
+        const sampledIndices = new Set();
         
-        while (startIndex < features.length) {
-            const endIndex = Math.min(startIndex + featuresPerChunk - 1, features.length - 1);
-            const chunkFeatures = features.slice(startIndex, endIndex + 1);
-            const chunkData = compressDataset(chunkFeatures);
-            const chunkString = JSON.stringify(chunkData);
-            const chunkTokens = chunkString.length * TOKENS_PER_CHAR_ESTIMATE;
-            
-            // Verify chunk is not too large
-            if (chunkTokens > MAX_INPUT_TOKENS) {
-                console.warn(`⚠️ Chunk would be ${Math.round(chunkTokens)} tokens, reducing features...`);
-                // Retry with fewer features
-                const reducedFeaturesPerChunk = Math.floor(featuresPerChunk * 0.7);
-                const reducedEndIndex = Math.min(startIndex + reducedFeaturesPerChunk - 1, features.length - 1);
-                const reducedChunkFeatures = features.slice(startIndex, reducedEndIndex + 1);
-                const reducedChunkData = compressDataset(reducedChunkFeatures);
-                const reducedChunkString = JSON.stringify(reducedChunkData);
-                const reducedChunkTokens = reducedChunkString.length * TOKENS_PER_CHAR_ESTIMATE;
+        if (chunksToCreate >= totalPossibleChunks) {
+            // If we can fit all data in max chunks, use sequential approach
+            let startIndex = 0;
+            while (startIndex < features.length && result.length < maxChunks) {
+                const endIndex = Math.min(startIndex + featuresPerChunk - 1, features.length - 1);
+                const chunkFeatures = features.slice(startIndex, endIndex + 1);
+                const chunkData = compressDataset(chunkFeatures);
+                const chunkString = JSON.stringify(chunkData);
+                const chunkTokens = chunkString.length * TOKENS_PER_CHAR_ESTIMATE;
                 
-                result.push({
-                    data: reducedChunkData,
-                    startIndex,
-                    endIndex: reducedEndIndex,
-                    estimatedTokens: reducedChunkTokens
-                });
-                
-                processed = reducedEndIndex + 1;
-                startIndex = reducedEndIndex + 1;
-            } else {
                 result.push({
                     data: chunkData,
                     startIndex,
@@ -652,21 +647,46 @@
                     estimatedTokens: chunkTokens
                 });
                 
-                processed = endIndex + 1;
                 startIndex = endIndex + 1;
             }
+        } else {
+            // Random sampling: select chunks evenly distributed across the dataset
+            const chunkStride = Math.floor(totalPossibleChunks / chunksToCreate);
             
-            // Safety check to prevent infinite loops and respect max chunks
-            if (result.length >= RATE_LIMIT_CONFIG.MAX_CHUNKS) {
-                console.warn(`⚠️ Reached maximum chunk limit (${RATE_LIMIT_CONFIG.MAX_CHUNKS}). Stopping chunking.`);
-                break;
+            for (let i = 0; i < chunksToCreate; i++) {
+                // Calculate which chunk to sample (evenly distributed)
+                const chunkNumber = Math.floor(i * chunkStride + Math.random() * chunkStride);
+                const startIndex = chunkNumber * featuresPerChunk;
+                const endIndex = Math.min(startIndex + featuresPerChunk - 1, features.length - 1);
+                
+                if (startIndex >= features.length) break;
+                
+                const chunkFeatures = features.slice(startIndex, endIndex + 1);
+                const chunkData = compressDataset(chunkFeatures);
+                const chunkString = JSON.stringify(chunkData);
+                const chunkTokens = chunkString.length * TOKENS_PER_CHAR_ESTIMATE;
+                
+                result.push({
+                    data: chunkData,
+                    startIndex,
+                    endIndex,
+                    estimatedTokens: chunkTokens,
+                    isRandomSample: true
+                });
+                
+                console.log(`   📍 Sampled chunk ${i + 1}: records ${startIndex + 1}-${endIndex + 1}`);
             }
         }
         
+        const processed = result.length > 0 ? result[result.length - 1].endIndex + 1 : 0;
+        const truncated = processed < features.length || chunksToCreate < totalPossibleChunks;
+        
         return {
             chunks: result,
-            truncated: processed < features.length,
-            processedCount: processed
+            truncated: truncated,
+            processedCount: processed,
+            isRandomSample: chunksToCreate < totalPossibleChunks,
+            totalRecords: features.length
         };
     }
 
@@ -936,7 +956,7 @@
         // potentially processing 5-10× more records in the same token space.
         
 
-        const { chunks, truncated, processedCount } = splitFeaturesForRawMode(allData);
+        const { chunks, truncated, processedCount, isRandomSample, totalRecords } = splitFeaturesForRawMode(allData);
         if (!chunks.length) {
             throw new Error('Unable to prepare the dataset for raw analysis. Try switching to cluster mode.');
         }
@@ -944,15 +964,19 @@
         // Log data coverage information
         console.log(`📊 Dataset Analysis Coverage:`);
         console.log(`   Total records: ${allData.length}`);
-        console.log(`   Records to be processed: ${processedCount}`);
-        console.log(`   Coverage: ${((processedCount / allData.length) * 100).toFixed(1)}%`);
+        console.log(`   Sampling strategy: ${isRandomSample ? 'RANDOM SAMPLING' : 'SEQUENTIAL'}`);
         console.log(`   Chunks: ${chunks.length} (max allowed: ${RATE_LIMIT_CONFIG.MAX_CHUNKS})`);
         
-        if (truncated) {
+        if (isRandomSample) {
+            console.warn(`🎲 RANDOM SAMPLING ACTIVE:`);
+            console.warn(`   Using ${chunks.length} randomly sampled chunks from dataset`);
+            console.warn(`   This provides stochastic responses with faster processing`);
+            console.warn(`   Coverage is distributed across the full dataset time range`);
+        } else if (truncated) {
             const skipped = allData.length - processedCount;
             console.warn(`⚠️  DATA TRUNCATION WARNING:`);
             console.warn(`   ${skipped} records (${((skipped / allData.length) * 100).toFixed(1)}%) will NOT be analyzed`);
-            console.warn(`   To analyze full dataset, increase MAX_CHUNKS: configureRateLimits({ MAX_CHUNKS: ${chunks.length + 5} })`);
+            console.warn(`   Increase MAX_CHUNKS for more coverage (current: ${RATE_LIMIT_CONFIG.MAX_CHUNKS})`);
         } else {
             console.log(`✅ Full dataset will be analyzed`);
         }
@@ -1015,9 +1039,11 @@
             const lastChunk = chunks[chunkNotes.length - 1];
             const recordsAnalyzed = lastChunk.endIndex + 1;
             truncatedNote = `Analysis was stopped after ${chunkNotes.length} chunks to avoid exceeding the model's context window. The first ${recordsAnalyzed} of ${allData.length} records were processed.`;
+        } else if (isRandomSample) {
+            truncatedNote = `Analysis used ${chunkNotes.length} randomly sampled chunks from ${allData.length} total records. This stochastic sampling approach provides diverse coverage across the dataset while respecting rate limits.`;
         } else {
             truncatedNote = finalTruncated
-                ? `Only the first ${processedCount} of ${allData.length} records could be processed due to token limits.`
+                ? `Only the first ${processedCount} of ${allData.length} records could be processed due to chunk limits.`
                 : `All ${processedCount} records were processed across ${chunks.length} chunk(s).`;
         }
 
@@ -2632,7 +2658,7 @@ Begin your narrative now:
         const seconds = Math.floor(totalEstimatedTime % 60);
         
         console.log(`   Estimated time: ~${totalEstimatedTime.toFixed(0)}s (${minutes}m ${seconds}s)`);
-        console.log(`   ⏱️  Using 12-15s spacing to prevent rate limits`);
+        console.log(`   ⏱️  Using 60s spacing between all calls (conservative for TPM limits)`);
         console.log(`   Breakdown: ${chunkDelayTime}s between chunks + ${finalDelayTime}s before synthesis + ${minSpacingTime.toFixed(0)}s min spacing`);
         
         chunks.forEach((chunk, i) => {
@@ -2649,15 +2675,18 @@ Begin your narrative now:
 
     // Function to adjust rate limit settings
     window.configureRateLimits = function(options = {}) {
-        console.log("⚙️ Current Rate Limit Configuration (Empirically Tested):");
+        console.log("⚙️ Current Rate Limit Configuration:");
         console.log(JSON.stringify(RATE_LIMIT_CONFIG, null, 2));
-        console.log("\n📊 Based on testing: API rate limits trigger at <9s spacing");
-        console.log("✅ Safe range: 12-15 seconds between consecutive API calls");
+        console.log("\n📊 Configuration Notes:");
+        console.log("   • 60s delay: Required to avoid 429 errors (TPM accumulation)");
+        console.log("   • 5 max chunks: Random sampling for fast, stochastic responses");
+        console.log("   • Random sampling: Chunks distributed across full dataset");
         
         if (Object.keys(options).length === 0) {
-            console.log("\n⚠️  WARNING: These settings are empirically optimized for your API.");
-            console.log("💡 Only modify if you experience different rate limit behavior.");
-            console.log("\nTo modify: configureRateLimits({ CHUNK_DELAY_MS: 15000 })");
+            console.log("\n⚠️  WARNING: Conservative settings to avoid rate limits.");
+            console.log("   Tested with Llama-3.1-8b-instant (30 RPM, 6K TPM)");
+            console.log("💡 Only modify if using a different model or need different coverage.");
+            console.log("\nTo modify: configureRateLimits({ MAX_CHUNKS: 10, CHUNK_DELAY_MS: 45000 })");
             console.log("\nAvailable settings:");
             console.log(`  CHUNK_DELAY_MS: delay between chunks (current: ${RATE_LIMIT_CONFIG.CHUNK_DELAY_MS}ms = ${RATE_LIMIT_CONFIG.CHUNK_DELAY_MS/1000}s)`);
             console.log(`  FINAL_DELAY_MS: delay before final synthesis (current: ${RATE_LIMIT_CONFIG.FINAL_DELAY_MS}ms = ${RATE_LIMIT_CONFIG.FINAL_DELAY_MS/1000}s)`);
@@ -2746,15 +2775,15 @@ Begin your narrative now:
     console.log("\n📋 QUICK START - Run 5-iteration benchmark for publication:");
     console.log("   runBenchmark(5)");
     console.log("\n⏱️  Configuration:");
-    console.log("   • Model: llama-3.1-8b-instant (6K TPM limit)");
-    console.log("   • Chunk size: 4K tokens (reduced from 8K for safety)");
-    console.log("   • Rate limits: 30-40 second spacing (conservative for TPM)");
-    console.log("   • Max chunks: 30 (handles 1,219 records with ~25-26 chunks)");
+    console.log("   • Model: llama-3.1-8b-instant (30 RPM, 6K TPM)");
+    console.log("   • Chunk size: 3K tokens (safe TPM budget)");
+    console.log("   • Rate limits: 60s between ALL calls (conservative for TPM)");
+    console.log("   • Max chunks: 5 (random sampling for stochastic responses)");
     console.log("   • Questions: 5 representative queries");
     console.log("\n🎯 Benchmark Options:");
-    console.log("   runBenchmark(1)  → Quick test (1 run, ~25-30 min)");
-    console.log("   runBenchmark(3)  → Standard test (3 runs, ~75-90 min)");
-    console.log("   runBenchmark(5)  → Publication quality (5 runs, ~125-150 min / 2-2.5 hrs) ⭐");
+    console.log("   runBenchmark(1)  → Quick test (1 run, ~5-6 min per raw query)");
+    console.log("   runBenchmark(3)  → Standard test (3 runs, ~1.5-2 hrs total)");
+    console.log("   runBenchmark(5)  → Publication quality (5 runs, ~2.5-3 hrs total) ⭐");
     console.log("\n� Diagnostic Tools:");
     console.log("   checkDataCoverage()    → Check if raw mode processes full dataset");
     console.log("   estimateRawModeCalls() → Estimate time for raw mode query");
