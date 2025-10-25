@@ -1012,6 +1012,9 @@
         const chunkDescriptors = [];
         let cumulativeNotesTokens = 0;
         let synthesisForced = false;
+        
+        // Track pure API latency (excluding artificial delays)
+        let pureApiLatencyMs = 0;
 
         for (let i = 0; i < chunks.length; i++) {
             const chunk = chunks[i];
@@ -1034,18 +1037,25 @@
             }
 
             console.log(`📊 Processing chunk ${i + 1}/${chunks.length} (~${estimatedChunkTokens} tokens)...`);
+            
+            // Measure pure API call time (excluding delays)
+            const chunkStartTime = performance.now();
             const apiResponse = await callLLMAPI(
                 buildPrompt('rawChunk', query, chunkJson, {
                     chunkIndex: i + 1,
                     totalChunks: chunks.length
                 })
             );
+            const chunkEndTime = performance.now();
+            const chunkLatency = chunkEndTime - chunkStartTime;
+            pureApiLatencyMs += chunkLatency;
 
             // Track actual token usage from API
             if (apiResponse.usage) {
                 totalPromptTokens += apiResponse.usage.promptTokens;
                 totalCompletionTokens += apiResponse.usage.completionTokens;
                 console.log(`   📊 Tokens: ${apiResponse.usage.promptTokens} prompt + ${apiResponse.usage.completionTokens} completion = ${apiResponse.usage.totalTokens} total`);
+                console.log(`   ⚡ API latency: ${(chunkLatency / 1000).toFixed(2)}s`);
             }
 
             const note = `Chunk ${i + 1} findings:\n${apiResponse.message}`;
@@ -1096,22 +1106,30 @@
         });
 
         console.log(`   Final prompt token estimate: ${estimateTokens(finalPrompt)}`);
+        
+        // Measure final synthesis API call time
+        const finalStartTime = performance.now();
         const finalApiResponse = await callLLMAPI(finalPrompt);
+        const finalEndTime = performance.now();
+        const finalLatency = finalEndTime - finalStartTime;
+        pureApiLatencyMs += finalLatency;
         
         // Track final synthesis tokens
         if (finalApiResponse.usage) {
             totalPromptTokens += finalApiResponse.usage.promptTokens;
             totalCompletionTokens += finalApiResponse.usage.completionTokens;
             console.log(`   📊 Tokens: ${finalApiResponse.usage.promptTokens} prompt + ${finalApiResponse.usage.completionTokens} completion = ${finalApiResponse.usage.totalTokens} total`);
+            console.log(`   ⚡ API latency: ${(finalLatency / 1000).toFixed(2)}s`);
         }
         
         // Log final response preview
         const finalPreview = finalApiResponse.message.substring(0, 150).replace(/\n/g, ' ');
         console.log(`   ✅ Final synthesis: "${finalPreview}${finalApiResponse.message.length > 150 ? '...' : ''}"`);
         
-        // Log cumulative token usage for entire raw mode query
+        // Log cumulative token usage and pure API latency for entire raw mode query
         const totalTokens = totalPromptTokens + totalCompletionTokens;
-        console.log(`\n   📊 TOTAL RAW MODE TOKENS: ${totalPromptTokens.toLocaleString()} prompt + ${totalCompletionTokens.toLocaleString()} completion = ${totalTokens.toLocaleString()} total\n`);
+        console.log(`\n   📊 TOTAL RAW MODE TOKENS: ${totalPromptTokens.toLocaleString()} prompt + ${totalCompletionTokens.toLocaleString()} completion = ${totalTokens.toLocaleString()} total`);
+        console.log(`   ⚡ PURE API LATENCY (excluding delays): ${(pureApiLatencyMs / 1000).toFixed(2)}s\n`);
 
     const partialNotes = chunkNotes.join('\n\n');
     const dataSummary = `${chunkDescriptors.join('\n')}
@@ -1127,7 +1145,8 @@ ${partialNotes}`;
             promptTokens: totalPromptTokens,
             completionTokens: totalCompletionTokens,
             totalTokens: totalTokens
-        }
+        },
+        pureApiLatencyMs: pureApiLatencyMs  // Pure API time excluding artificial delays
     };
     }
 
@@ -2228,13 +2247,17 @@ Begin your narrative now:
 
         async testMode(benchmark, mode) {
             console.log(`   Testing '${mode}' mode for: "${benchmark.question}"`);
-            const startTime = performance.now();
+            const wallClockStartTime = performance.now();
             
             try {
                 const result = await processUserQuery(benchmark.question, mode);
-                const endTime = performance.now();
+                const wallClockEndTime = performance.now();
 
-                const latencyMs = endTime - startTime;
+                const wallClockLatencyMs = wallClockEndTime - wallClockStartTime;
+                
+                // For raw mode, use pure API latency (excluding artificial delays)
+                // For cluster mode, use wall-clock time (no artificial delays)
+                const pureLatencyMs = result.pureApiLatencyMs || wallClockLatencyMs;
                 
                 // Use actual tokens from API response, fallback to estimates if not available
                 let promptTokens, responseTokens;
@@ -2252,11 +2275,16 @@ Begin your narrative now:
                 const totalCost = this.calculateCost(promptTokens, responseTokens);
 
                 // Log token summary for this mode
-                console.log(`   💰 Cost: $${totalCost.toFixed(6)} | Latency: ${(latencyMs / 1000).toFixed(2)}s\n`);
+                if (mode === 'raw' && result.pureApiLatencyMs) {
+                    console.log(`   💰 Cost: $${totalCost.toFixed(6)} | Pure API latency: ${(pureLatencyMs / 1000).toFixed(2)}s | Wall-clock: ${(wallClockLatencyMs / 1000).toFixed(2)}s\n`);
+                } else {
+                    console.log(`   💰 Cost: $${totalCost.toFixed(6)} | Latency: ${(pureLatencyMs / 1000).toFixed(2)}s\n`);
+                }
 
                 return {
-                    latencyMs,
-                    latencySec: (latencyMs / 1000).toFixed(2),
+                    latencyMs: pureLatencyMs,  // Use pure API latency for fair comparison
+                    latencySec: (pureLatencyMs / 1000).toFixed(2),
+                    wallClockLatencyMs: wallClockLatencyMs,  // Keep wall-clock for reference
                     promptTokens,
                     responseTokens,
                     totalTokens,
@@ -2356,6 +2384,7 @@ Begin your narrative now:
                     successCount: 0,
                     errors: runs.map(r => r.error).filter(Boolean),
                     latency: { mean: 0, stdDev: 0, min: 0, max: 0 },
+                    wallClock: { mean: 0, stdDev: 0, min: 0, max: 0 },
                     promptTokens: { mean: 0, stdDev: 0, min: 0, max: 0 },
                     responseTokens: { mean: 0, stdDev: 0, min: 0, max: 0 },
                     totalTokens: { mean: 0, stdDev: 0, min: 0, max: 0 },
@@ -2364,7 +2393,8 @@ Begin your narrative now:
             }
             
             // Extract values for statistics
-            const latencies = successful.map(r => r.latencyMs / 1000); // Convert to seconds
+            const latencies = successful.map(r => r.latencyMs / 1000); // Pure API time in seconds
+            const wallClockLatencies = successful.map(r => (r.wallClockLatencyMs || r.latencyMs) / 1000); // Wall-clock time in seconds
             const promptTokens = successful.map(r => r.promptTokens);
             const responseTokens = successful.map(r => r.responseTokens);
             const totalTokens = successful.map(r => r.totalTokens);
@@ -2379,7 +2409,8 @@ Begin your narrative now:
                 runs: runs.length,
                 successCount: successful.length,
                 errors: runs.filter(r => r.error).map(r => r.error),
-                latency: this.calculateStats(latencies),
+                latency: this.calculateStats(latencies),  // Pure API latency (fair comparison metric)
+                wallClock: this.calculateStats(wallClockLatencies),  // Total elapsed time (operational metric)
                 promptTokens: this.calculateStats(promptTokens),
                 responseTokens: this.calculateStats(responseTokens),
                 totalTokens: this.calculateStats(totalTokens),
@@ -2539,15 +2570,17 @@ Begin your narrative now:
 
         exportToCSV() {
             // CSV with aggregated statistics (mean ± stdDev)
-            let csv = "Question ID,Question,Mode,Runs,Success Rate,Latency Mean (s),Latency StdDev (s),Prompt Tokens Mean,Prompt Tokens StdDev,Response Tokens Mean,Response Tokens StdDev,Total Tokens Mean,Total Tokens StdDev,Cost Mean ($),Cost StdDev ($)\n";
+            let csv = "Question ID,Question,Mode,Runs,Success Rate,Latency Mean (s),Latency StdDev (s),Wall-Clock Mean (s),Wall-Clock StdDev (s),Prompt Tokens Mean,Prompt Tokens StdDev,Response Tokens Mean,Response Tokens StdDev,Total Tokens Mean,Total Tokens StdDev,Cost Mean ($),Cost StdDev ($)\n";
             
             this.results.forEach(r => {
-                // Cluster row
+                // Cluster row (latency = wall-clock for cluster mode)
                 csv += `${r.questionId},"${r.question.replace(/"/g, '""')}",cluster,`;
                 csv += `${r.cluster.runs},`;
                 csv += `${((r.cluster.successCount / r.cluster.runs) * 100).toFixed(1)}%,`;
                 csv += `${r.cluster.latency.mean.toFixed(4)},`;
                 csv += `${r.cluster.latency.stdDev.toFixed(4)},`;
+                csv += `${r.cluster.wallClock ? r.cluster.wallClock.mean.toFixed(4) : r.cluster.latency.mean.toFixed(4)},`;
+                csv += `${r.cluster.wallClock ? r.cluster.wallClock.stdDev.toFixed(4) : r.cluster.latency.stdDev.toFixed(4)},`;
                 csv += `${r.cluster.promptTokens.mean.toFixed(2)},`;
                 csv += `${r.cluster.promptTokens.stdDev.toFixed(2)},`;
                 csv += `${r.cluster.responseTokens.mean.toFixed(2)},`;
@@ -2557,12 +2590,14 @@ Begin your narrative now:
                 csv += `${r.cluster.cost.mean.toFixed(8)},`;
                 csv += `${r.cluster.cost.stdDev.toFixed(8)}\n`;
                 
-                // Raw row
+                // Raw row (latency = pure API time, wall-clock = total with delays)
                 csv += `${r.questionId},"${r.question.replace(/"/g, '""')}",raw,`;
                 csv += `${r.raw.runs},`;
                 csv += `${((r.raw.successCount / r.raw.runs) * 100).toFixed(1)}%,`;
                 csv += `${r.raw.latency.mean.toFixed(4)},`;
                 csv += `${r.raw.latency.stdDev.toFixed(4)},`;
+                csv += `${r.raw.wallClock ? r.raw.wallClock.mean.toFixed(4) : r.raw.latency.mean.toFixed(4)},`;
+                csv += `${r.raw.wallClock ? r.raw.wallClock.stdDev.toFixed(4) : r.raw.latency.stdDev.toFixed(4)},`;
                 csv += `${r.raw.promptTokens.mean.toFixed(2)},`;
                 csv += `${r.raw.promptTokens.stdDev.toFixed(2)},`;
                 csv += `${r.raw.responseTokens.mean.toFixed(2)},`;
@@ -2597,21 +2632,23 @@ Begin your narrative now:
 
         exportRawRunsCSV() {
             // CSV with individual run data
-            let csv = "Question ID,Question,Run,Mode,Latency (s),Prompt Tokens,Response Tokens,Total Tokens,Cost ($),Error\n";
+            let csv = "Question ID,Question,Run,Mode,Latency (s),Wall-Clock (s),Prompt Tokens,Response Tokens,Total Tokens,Cost ($),Error\n";
             
             this.rawRunData.forEach(run => {
-                // Cluster run
+                // Cluster run (latency = wall-clock for cluster)
                 csv += `${run.questionId},"${run.question.replace(/"/g, '""')}",${run.run},cluster,`;
                 csv += `${(run.cluster.latencyMs / 1000).toFixed(4)},`;
+                csv += `${((run.cluster.wallClockLatencyMs || run.cluster.latencyMs) / 1000).toFixed(4)},`;
                 csv += `${run.cluster.promptTokens || ''},`;
                 csv += `${run.cluster.responseTokens || ''},`;
                 csv += `${run.cluster.totalTokens || ''},`;
                 csv += `${run.cluster.costUSD?.toFixed(8) || ''},`;
                 csv += `"${run.cluster.error || ''}"\n`;
                 
-                // Raw run
+                // Raw run (latency = pure API, wall-clock = with delays)
                 csv += `${run.questionId},"${run.question.replace(/"/g, '""')}",${run.run},raw,`;
                 csv += `${(run.raw.latencyMs / 1000).toFixed(4)},`;
+                csv += `${((run.raw.wallClockLatencyMs || run.raw.latencyMs) / 1000).toFixed(4)},`;
                 csv += `${run.raw.promptTokens || ''},`;
                 csv += `${run.raw.responseTokens || ''},`;
                 csv += `${run.raw.totalTokens || ''},`;
