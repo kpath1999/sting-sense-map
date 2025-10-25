@@ -348,7 +348,7 @@
     const RAW_SINGLE_REQUEST_CHAR_LIMIT = 11000;
     const RAW_MAX_CHUNKS = 50;
     const TOKENS_PER_CHAR_ESTIMATE = 0.25;       // More accurate estimate (1 token ~ 4 chars)
-    const MAX_INPUT_TOKENS = 3000;               // Reduced from 4000 to create lighter, safer chunks
+    const MAX_INPUT_TOKENS = 3500;               // Reduced from 4000 to create lighter, safer chunks
     const SYNTHESIS_CONTEXT_LIMIT = 120000;      // Set a safe limit for the final prompt (e.g., ~90% of 131k)
 
     // ============================================================================
@@ -1018,6 +1018,10 @@
             const note = `Chunk ${i + 1} findings:\n${chunkResponse}`;
             const noteTokens = estimateTokens(note);
             
+            // Log response preview for debugging
+            const preview = chunkResponse.substring(0, 100).replace(/\n/g, ' ');
+            console.log(`   ✓ Chunk ${i + 1} response: "${preview}${chunkResponse.length > 100 ? '...' : ''}"`);
+            
             // Check if adding this note exceeds our synthesis budget
             if (cumulativeNotesTokens + noteTokens > SYNTHESIS_CONTEXT_LIMIT) {
                 console.warn(`🚨 CONTEXT LIMIT REACHED!`);
@@ -1060,6 +1064,10 @@
 
         console.log(`   Final prompt token estimate: ${estimateTokens(finalPrompt)}`);
         const finalResponse = await callLLMAPI(finalPrompt);
+        
+        // Log final response preview
+        const finalPreview = finalResponse.substring(0, 150).replace(/\n/g, ' ');
+        console.log(`   ✅ Final synthesis: "${finalPreview}${finalResponse.length > 150 ? '...' : ''}"`);
 
     const partialNotes = chunkNotes.join('\n\n');
     const dataSummary = `${chunkDescriptors.join('\n')}
@@ -1080,6 +1088,11 @@ ${partialNotes}`;
         const dataSummary = formatSummaryForPrompt(category, summary);
         const prompt = buildPrompt(category, query, dataSummary);
         const response = await callLLMAPI(prompt);
+        
+        // Log cluster mode response preview
+        const preview = response.substring(0, 120).replace(/\n/g, ' ');
+        console.log(`   ✅ Cluster response: "${preview}${response.length > 120 ? '...' : ''}"`);
+        
         return { response, category, dataSummary };
     }
 
